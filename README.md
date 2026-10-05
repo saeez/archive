@@ -95,7 +95,7 @@ Any Apache host with PHP 8 and `.htaccess` support. HTTPS must be on.
 2. Build a folder with only what the server needs:
 
    ```sh
-   rsync -a --exclude .git --exclude .gitignore --exclude README.md --exclude CLAUDE.md --exclude test.js \
+   rsync -a --exclude .git --exclude .gitignore --exclude README.md --exclude CLAUDE.md --exclude test.js --exclude LICENSE \
      --exclude api/setup.php --exclude 'fonts/*.txt' --exclude .DS_Store ./ ~/Desktop/archive-upload/
    ```
 
@@ -123,6 +123,11 @@ Runs the shelf, search, colour and formatting logic, then the real
 `api/library.php` and `api/setup.php` against a throwaway copy: sign-in,
 forged and expired cookies, the lockout, privacy of notes and private items,
 covers, and that data files can't be read from the web. Needs PHP and Node 18+.
+
+## License
+
+The code is under the [MIT License](LICENSE): free to use, copy and change,
+keeping the copyright notice. The fonts keep their own license (below).
 
 ## Credits
 
