@@ -27,6 +27,8 @@ step, no npm, no database.
   quotes). Notes are private to the owner.
 - **Scrolls**: the owner's own writings can stand on the shelf as rolled-up
   scrolls that unroll when opened.
+- **Currently reading**: books ticked as being read stand face out below the
+  shelf, covers showing, until they are unticked.
 - **Private items**: any book or scroll can be marked private.
 
 ## How it's built

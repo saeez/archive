@@ -213,6 +213,9 @@ function clean($in, string $id, string $added, string $oldCover) {
     $pages = $in['pages'] ?? null;
     if (!is_int($pages) || $pages < 1 || $pages > 20000) return 'Pages must be a whole number from 1 to 20,000.';
     $out['pages'] = $pages;
+    $reading = $in['reading'] ?? false;
+    if (!is_bool($reading)) return 'Reading must be true or false.';
+    $out['reading'] = $reading;
     if (!preg_match('/^[0-9Xx -]*$/', $out['isbn'])) return 'An ISBN has only digits, X, spaces and dashes.';
     $color = $in['color'] ?? '';
     if (!is_string($color) || !preg_match('/^(#[0-9a-f]{6})?$/', $color)) return 'Bad spine colour.';

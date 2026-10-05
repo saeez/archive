@@ -149,7 +149,7 @@ body.ready .foot { transition-delay: 1s; }
 .slot .box {
   position: absolute; bottom: 0; left: calc((var(--bt) - var(--bw)) / 2);
   transform: translateZ(calc(var(--bw) / -2)) rotateY(90deg);
-  transition: transform 1.1s var(--slow);
+  transition: transform .8s var(--slow);
 }
 /* hovered: drawn toward you and turned a little, so its cover shows */
 .slot.book:hover .box, .slot.book:focus-visible .box {
@@ -158,7 +158,7 @@ body.ready .foot { transition-delay: 1s; }
 .slot.book::after {
   content: ""; position: absolute; left: -30%; right: -30%; bottom: -7px; height: 14px; border-radius: 50%;
   background: radial-gradient(closest-side, oklch(0.35 0.04 55 / .35), transparent);
-  transition: opacity 1s var(--slow), transform 1.1s var(--slow);
+  transition: opacity .8s var(--slow), transform .8s var(--slow);
 }
 .slot.book:hover::after { opacity: .5; transform: scale(1.6, 1.4); }
 
@@ -208,7 +208,7 @@ body.ready .foot { transition-delay: 1s; }
     linear-gradient(transparent 47%, oklch(0.47 0.13 28) 47% 53%, transparent 53%),
     linear-gradient(90deg, oklch(0.76 0.045 72), oklch(0.95 0.025 85) 36%, oklch(0.9 0.03 80) 62%, oklch(0.72 0.05 68));
   box-shadow: 4px 6px 12px oklch(0.35 0.04 55 / .25);
-  transition: transform 1.1s var(--slow), box-shadow 1.1s var(--slow);
+  transition: transform .8s var(--slow), box-shadow .8s var(--slow);
 }
 .roll::before, .roll::after {
   content: ""; position: absolute; left: 50%; width: 18px; height: 12px; margin-left: -9px; border-radius: 4px;
@@ -224,6 +224,19 @@ body.ready .foot { transition-delay: 1s; }
   transform: translateZ(80px) translateY(-16px) rotateY(-16deg);
   box-shadow: 14px 20px 26px oklch(0.35 0.04 55 / .3);
 }
+
+/* Books being read stand below the shelf, face out, turned a little so the
+   spine shows (flight() in app.js starts from this same turn). */
+.reading { margin-top: clamp(56px, 10vh, 112px); padding: 0 clamp(16px, 5vw, 64px); text-align: center; }
+.reading h2 { margin: 0 0 34px; }
+.reading-track { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 44px clamp(28px, 5vw, 64px); }
+.reading .slot { margin: 0; }
+.reading .slot.book { width: var(--bw); }
+.reading .slot .box { left: 0; transform: translateY(0) translateZ(0) rotateY(10deg); }
+.reading .slot.book:hover .box, .reading .slot.book:focus-visible .box { transform: translateY(-14px) translateZ(40px) rotateY(24deg); }
+.reading .slot.book::after { left: -6%; right: -6%; }
+.reading .slot.book:hover::after { transform: scale(1.12, 1.4); }
+body.ready .reading { transition-delay: .6s; }
 
 /* ---- the floating card ---- */
 

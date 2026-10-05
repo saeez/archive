@@ -48,6 +48,11 @@
     <div id="track" class="track"></div>
     <div class="ledge" aria-hidden="true"></div>
   </section>
+
+  <section id="reading" class="reading rise" aria-labelledby="reading-title" hidden>
+    <h2 id="reading-title" class="label">Currently reading</h2>
+    <div id="reading-track" class="reading-track"></div>
+  </section>
 </main>
 
 <footer class="foot label rise">by <a href="https://saeedzafar.se">saeedzafar.se</a></footer>
@@ -90,6 +95,10 @@
           <p id="cover-status" class="note" role="status"></p>
         </div>
       </div>
+      <label class="check">
+        <input type="checkbox" name="reading">
+        <span><strong>Currently reading</strong> <small>It stands below the shelf until you untick this.</small></span>
+      </label>
     </fieldset>
 
     <fieldset id="for-scroll" disabled>

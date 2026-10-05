@@ -185,6 +185,7 @@ const plain = text => blocks(text).map(b => b.lines.map(l => spans(l).map(s => s
 
 const $ = id => document.getElementById(id);
 const rail = $("rail"), track = $("track"), card = $("card"), search = $("q"), chips = $("chips");
+const shelves = document.querySelector("main"), reading = $("reading"), readingTrack = $("reading-track");
 const detail = $("detail"), editor = $("editor"), form = $("form");
 const calm = matchMedia("(prefers-reduced-motion: reduce)");
 const GAP = 6;                    // space after each thing on the shelf, px (matches .slot margin)
@@ -295,12 +296,12 @@ function bookBox(it, H) {
   return box;
 }
 
-function slot(it) {
+function slot(it, k = 1) {
   const b = el("button", `slot item ${it.kind}`);
   b.type = "button";
   b.dataset.id = it.id;
   if (it.kind === "book") {
-    const box = bookBox(it, 212 + (hash(it.title + "|" + it.author) >>> 4) % 46);
+    const box = bookBox(it, Math.round(k * (212 + (hash(it.title + "|" + it.author) >>> 4) % 46)));
     for (const name of ["--bh", "--bw", "--bt"]) b.style.setProperty(name, box.style.getPropertyValue(name));
     b.setAttribute("aria-label", `${it.title}${it.author ? " by " + it.author : ""}`);
     b.append(box);
@@ -333,16 +334,22 @@ function fillGenres() {
 function render() {
   fillGenres();
   const ws = words(search.value), g = genre;
-  const out = [];
+  const fits = it => matches(it, ws) && (!g || genresOf(it).some(x => x.toLowerCase() === g));
+  const out = [], shelf = items.filter(it => !it.reading);
   let shown = 0;
-  for (const grp of arrange(items)) {
-    const list = grp.items.filter(it => matches(it, ws) && (!g || genresOf(it).some(x => x.toLowerCase() === g)));
+  for (const grp of arrange(shelf)) {
+    const list = grp.items.filter(fits);
     if (!list.length) continue;
-    out.push(...list.map(slot));
+    out.push(...list.map(it => slot(it)));
     shown += list.length;
   }
-  if (!shown) out.push(el("p", "label empty-shelf", items.length ? "Nothing on the shelf matches your search." : "The shelf is empty. Press the pen to add your first book."));
+  if (!shown) out.push(el("p", "label empty-shelf", shelf.length ? "Nothing on the shelf matches your search." : "The shelf is empty. Press the pen to add your first book."));
   track.replaceChildren(...out);
+  // books being read stand below the shelf, face out
+  const now = items.filter(it => it.reading && fits(it));
+  readingTrack.replaceChildren(...now.map(it => slot(it, .8)));
+  reading.hidden = !now.length;
+  shown += now.length;
   offset = glide = 0;
   hideCard();
   layout();
@@ -450,25 +457,25 @@ rail.addEventListener("keydown", e => {
   e.preventDefault();
   list[(i + (e.key === "ArrowRight" ? 1 : -1) + list.length) % list.length].focus({ preventScroll: true });
 });
-rail.addEventListener("focusin", e => {
+shelves.addEventListener("focusin", e => {
   const s = e.target.closest(".item");
   if (!s) return;
-  follow = s;
+  if (rail.contains(s)) follow = s;
   if (s.matches(":focus-visible")) showCard(s);
 });
-rail.addEventListener("focusout", () => { follow = null; if (!hoverSlot) hideCard(); });
+shelves.addEventListener("focusout", () => { follow = null; if (!hoverSlot) hideCard(); });
 rail.addEventListener("scroll", () => { rail.scrollLeft = 0; });   // focus must not scroll the clipped shelf
 
-track.addEventListener("pointerover", e => {
+shelves.addEventListener("pointerover", e => {
   if (e.pointerType !== "mouse" || drag?.moved > 6) return;
   const s = e.target.closest(".item");
   if (s && s !== hoverSlot) { hoverSlot = s; showCard(s); }
 });
-track.addEventListener("pointerout", e => {
+shelves.addEventListener("pointerout", e => {
   const s = e.target.closest(".item");
   if (s && !s.contains(e.relatedTarget)) { hoverSlot = null; hideCard(); }
 });
-track.addEventListener("click", e => {
+shelves.addEventListener("click", e => {
   const s = e.target.closest(".item");
   if (s) (s.classList.contains("book") ? openBook : openScroll)(s);
 });
@@ -546,13 +553,15 @@ function chrome(it) {
 }
 
 /* The flight between shelf and stage, as transforms of the stage's box:
-   `at` the shelf, lifted `out` of it, and `home` on the stage. */
+   `at` the shelf, lifted `out` of it, and `home` on the stage. A book being
+   read already faces you (turned as in .reading .slot .box). */
 function flight(s, box, float) {
   const sr = s.getBoundingClientRect(), fr = float.getBoundingClientRect(), { W, H } = box.dims;
   const sc = s.offsetHeight / H, dx = sr.left + sr.width / 2 - (fr.left + fr.width / 2), dy = sr.bottom - sc * H / 2 - (fr.top + fr.height / 2);
+  const [z, turn] = reading.contains(s) ? [0, 10] : [-W / 2, 90];
   return {
-    at: `translate(${dx}px, ${dy}px) scale3d(${sc}, ${sc}, ${sc}) translateZ(${-W / 2}px) rotateY(90deg)`,
-    out: `translate(${dx}px, ${dy - 80}px) scale3d(${sc * 1.08}, ${sc * 1.08}, ${sc * 1.08}) translateZ(${-W / 2 + 40}px) rotateY(80deg)`,
+    at: `translate(${dx}px, ${dy}px) scale3d(${sc}, ${sc}, ${sc}) translateZ(${z}px) rotateY(${turn}deg)`,
+    out: `translate(${dx}px, ${dy - 80}px) scale3d(${sc * 1.08}, ${sc * 1.08}, ${sc * 1.08}) translateZ(${z + 40}px) rotateY(${turn - 10}deg)`,
     home: "translate(0px, 0px) scale3d(1, 1, 1) translateZ(0px) rotateY(14deg)",
   };
 }
@@ -652,7 +661,7 @@ detail.addEventListener("click", e => { if (e.target === detail || e.target.clas
 /* ---- arrivals ---- */
 
 function centerOn(s) {
-  if (!looping) return;
+  if (!looping || !rail.contains(s)) return;
   offset = s.offsetLeft + s.offsetWidth / 2 - rail.clientWidth / 2;
   glide = 0;
   normalize();
@@ -660,11 +669,13 @@ function centerOn(s) {
   idleUntil = performance.now() + 4000;
 }
 
+const slotOf = id => shelves.querySelector(`.item:not(.clone)[data-id="${id}"]`);
+
 /* A new book floats down into its place on the shelf. */
 function land(id) {
-  const s = track.querySelector(`.item:not(.clone)[data-id="${id}"]`);
+  const s = slotOf(id);
   if (!s) return;
-  rail.scrollIntoView({ block: "center", behavior: calm.matches ? "auto" : "smooth" });
+  (rail.contains(s) ? rail : s).scrollIntoView({ block: "center", behavior: calm.matches ? "auto" : "smooth" });
   centerOn(s);
   if (calm.matches) return;
   if (s.classList.contains("scroll")) return rollUp(s, byId(id));
@@ -696,7 +707,7 @@ async function rollUp(target, it) {
 }
 
 function glow(id) {
-  const s = track.querySelector(`.item:not(.clone)[data-id="${id}"]`);
+  const s = slotOf(id);
   if (!s) return;
   centerOn(s);
   if (!calm.matches) s.animate([{ filter: "brightness(1.35) drop-shadow(0 0 18px oklch(0.85 0.1 75))" }, { filter: "none" }], 1800);
@@ -791,6 +802,7 @@ function openEditor(it) {
   }
   draft = { cover: it?.cover || "", coverData: null, color: it?.color || "" };
   form.elements.private.checked = !!it?.private;
+  form.elements.reading.checked = !!it?.reading;
   privateTouched = false;
   showCover();
   for (const v of form.querySelectorAll(".rich.preview")) v.hidden = true;
@@ -919,7 +931,7 @@ async function remove(it) {
   try { await send({ op: "delete", id: it.id }); } catch (err) { $("form-error").textContent = err.message; return; }
   dirty = false;
   editor.close();
-  const s = track.querySelector(`.item:not(.clone)[data-id="${it.id}"]`);
+  const s = slotOf(it.id);
   if (s && !calm.matches) {
     await s.animate([{ opacity: 1 }, { transform: "translateY(-60px)", opacity: 0 }],
       { duration: 900, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" }).finished;
@@ -949,7 +961,7 @@ form.addEventListener("submit", async e => {
   };
   if (item.kind === "book") {
     Object.assign(item, { pages: Number(f.get("pages")), isbn: f.get("isbn").trim(),
-                          cover: draft.cover, color: draft.color });
+                          cover: draft.cover, color: draft.color, reading: form.elements.reading.checked });
     if (draft.coverData) item.coverData = draft.coverData;
   } else {
     item.text = f.get("text");

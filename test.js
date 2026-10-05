@@ -138,7 +138,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     /* the librarian's books, notes and private things */
     const book = { id: "aaaaaaaa-1", kind: "book", title: " Dune ", author: "Frank Herbert", genre: "Sci-fi, Classics", pages: 412,
                    rating: 5, notes: "My notes <script>alert(1)</script> <?php echo 'x'; ?>", year: 1965, isbn: "978-0441172719",
-                   color: "#7a3b2a", private: false, extra: "dropped", binding: "Paperback" };
+                   color: "#7a3b2a", private: false, reading: true, extra: "dropped", binding: "Paperback" };
     r = await post({ op: "put", item: { ...book, coverData: JPEG } }, { cookie: me });
     assert.strictEqual(r.status, 200);
     let lib = (await r.json()).items;
@@ -157,6 +157,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     assert.strictEqual(pub.owner, false);
     assert.deepStrictEqual(pub.items.map(i => i.id), ["aaaaaaaa-1"], "visitors never get private items");
     assert.ok(!("notes" in pub.items[0]) && !("private" in pub.items[0]), "or anyone's notes");
+    assert.strictEqual(pub.items[0].reading, true, "visitors do see what you are reading");
     assert.ok(!JSON.stringify(pub).includes("Very personal") && !JSON.stringify(pub).includes("Secret"));
 
     /* covers */
@@ -197,7 +198,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     for (const [bad, why] of [
       [{ pages: 0 }, "a book needs pages"], [{ title: "  " }, "a book needs a title"], [{ rating: 6 }, "ratings go to 5"],
       [{ id: "../../etc" }, "ids are checked"], [{ year: 1.5 }, "years are whole"], [{ color: "red; x" }, "colours are #rrggbb"],
-      [{ isbn: "<b>" }, "ISBNs are digits"], [{ private: "yes" }, "private is true or false"],
+      [{ isbn: "<b>" }, "ISBNs are digits"], [{ private: "yes" }, "private is true or false"], [{ reading: 1 }, "so is reading"],
       [{ coverData: "data:image/png;base64,iVBORw0KGgo=" }, "covers must be JPEG"],
       [{ coverData: "data:image/jpeg;base64,/9j/notreallyajpeg" }, "and really be one"],
     ]) assert.strictEqual((await post({ op: "put", item: { ...book, ...bad } }, { cookie: me })).status, 400, why);
