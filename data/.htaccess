@@ -1,0 +1,3 @@
+# Nothing in here is ever served directly: the library, the covers and the
+# sign-in log only leave through api/library.php, which checks who is asking.
+Require all denied

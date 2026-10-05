@@ -1,0 +1,23 @@
+# Your password hash and signing key (written by `php api/setup.php`).
+# Never commit it: anyone with it could try to crack the password offline.
+api/config.php
+
+# Your library: books, private items, notes, covers, backups, sign-in log.
+# Kept out of git so a pushed repository can never leak your notes.
+# Back up the data folder separately (see README).
+data/*
+!data/.htaccess
+
+# Images (the site icons) and notes for Claude stay out of the repository.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+CLAUDE.md
+
+# Leftovers from macOS and editors.
+.DS_Store
+.vscode/
+*.tmp

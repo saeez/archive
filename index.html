@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saeed's Archive</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+</svg>
+<div class="glow" aria-hidden="true"><span></span><span></span><span></span></div>
+
+<header class="bar rise">
+  <span class="label">Saeed's archive</span>
+  <div class="tools">
+    <input id="q" type="search" placeholder="What are you looking for?" aria-label="Search the archive">
+    <button id="add" class="icon-btn owner-only" type="button" title="Add a book or scroll" aria-label="Add a book or scroll"><svg class="icon" aria-hidden="true"><use href="#i-pen"/></svg></button>
+    <button id="signout" class="icon-btn owner-only" type="button" title="Sign out" aria-label="Sign out"><svg class="icon" aria-hidden="true"><use href="#i-out"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <p id="stats" class="label rise" aria-live="polite"></p>
+    <h1 class="welcome" aria-label="Welcome to my archive.">
+      <span class="ghost" aria-hidden="true">Welcome to my <em>archive</em>.</span>
+      <span id="typed" class="typed" aria-hidden="true"></span>
+    </h1>
+    <p class="sub rise">Books I have read, and pages I have written.</p>
+  </section>
+
+  <nav id="chips" class="chips rise" aria-label="Genres"></nav>
+
+  <section id="rail" class="rail rise" aria-label="The shelf">
+    <div id="track" class="track"></div>
+    <div class="ledge" aria-hidden="true"></div>
+  </section>
+</main>
+
+<footer class="foot label rise">by <a href="https://saeedzafar.se">saeedzafar.se</a></footer>
+
+<div id="card" class="card" aria-hidden="true"></div>
+
+<dialog id="detail"></dialog>
+
+<dialog id="editor">
+  <form id="form" class="form-card">
+    <p class="label">The archive</p>
+    <h2 id="form-title">Add to the archive</h2>
+
+    <div class="kind">
+      <label><input type="radio" name="kind" value="book" checked> Book</label>
+      <label><input type="radio" name="kind" value="scroll"> Scroll <small>(writing / document)</small></label>
+    </div>
+
+    <label class="field"><span class="label">Title</span><input name="title" required maxlength="200" autocomplete="off"></label>
+    <div class="row">
+      <label class="field"><span class="label">Author</span><input name="author" maxlength="120" autocomplete="off"></label>
+      <label class="field"><span class="label">Year</span><input name="year" type="number" min="-3000" max="2100" step="1" placeholder="e.g. 1866" inputmode="numeric"></label>
+    </div>
+    <label class="field"><span class="label">Genres <small>(several? separate with commas)</small></span><input name="genre" list="genres" maxlength="120" placeholder="e.g. Philosophy, Religion" autocomplete="off"></label>
+
+    <fieldset id="for-book">
+      <div class="row">
+        <label class="field"><span class="label">Total pages</span><input name="pages" type="number" min="1" max="20000" required inputmode="numeric"><small class="note">Sets how thick the spine is.</small></label>
+        <label class="field"><span class="label">ISBN <small>(optional)</small></span><input name="isbn" maxlength="20" inputmode="numeric" autocomplete="off"><small class="note">Finds the exact edition's cover.</small></label>
+      </div>
+      <div class="cover-pick">
+        <div id="cover-preview" class="cover-preview"><span class="label">No cover</span></div>
+        <div>
+          <span class="label">Cover</span>
+          <div class="cover-actions">
+            <button id="cover-find" class="ghost-btn" type="button">Find cover</button>
+            <label class="ghost-btn">Upload image<input id="cover-file" type="file" accept="image/*"></label>
+            <button id="cover-clear" class="ghost-btn" type="button">Remove</button>
+          </div>
+          <p id="cover-status" class="note" role="status"></p>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset id="for-scroll" disabled>
+      <div class="field">
+        <label class="label" for="text">Text</label>
+        <textarea id="text" name="text" rows="12" maxlength="200000" data-rich></textarea>
+      </div>
+    </fieldset>
+
+    <label class="check">
+      <input type="checkbox" name="private">
+      <span><strong>Private</strong> <small>Only you can see it, and only when signed in.</small></span>
+    </label>
+
+    <fieldset class="rate">
+      <legend class="label">Your rating</legend>
+      <div class="rate-row">
+        <input type="radio" name="rating" value="0" id="r0" checked><label for="r0" class="none">no rating</label>
+        <input type="radio" name="rating" value="5" id="r5"><label for="r5" title="5 stars">★<span class="sr">5 stars</span></label>
+        <input type="radio" name="rating" value="4" id="r4"><label for="r4" title="4 stars">★<span class="sr">4 stars</span></label>
+        <input type="radio" name="rating" value="3" id="r3"><label for="r3" title="3 stars">★<span class="sr">3 stars</span></label>
+        <input type="radio" name="rating" value="2" id="r2"><label for="r2" title="2 stars">★<span class="sr">2 stars</span></label>
+        <input type="radio" name="rating" value="1" id="r1"><label for="r1" title="1 star">★<span class="sr">1 star</span></label>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label class="label" for="notes">Notes / remarks <small>(always private)</small></label>
+      <textarea id="notes" name="notes" rows="6" maxlength="20000" placeholder="What stayed with you after reading it?" data-rich></textarea>
+    </div>
+
+    <p id="form-error" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="remove" class="icon-btn trash" type="button" title="Remove from the archive" aria-label="Remove from the archive" hidden><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>
+      <button id="cancel" class="ghost-btn" type="button">Cancel</button>
+      <button id="save" class="solid-btn">Put it on the shelf</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="signin">
+  <form id="signin-form" class="form-card small">
+    <p class="label">Saeed's archive</p>
+    <h2>Sign in</h2>
+    <label class="field"><span class="label">Password</span><input name="password" type="password" autocomplete="current-password" required maxlength="1000"></label>
+    <p id="signin-error" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="signin-cancel" class="ghost-btn" type="button">Cancel</button>
+      <button class="solid-btn">Sign in</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="genres"></datalist>
+
+</body>
+</html>

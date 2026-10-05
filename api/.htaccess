@@ -1,0 +1,12 @@
+# library.php is the only thing in here anyone may request.
+# config.php (the password hash) and setup.php (run on your computer) are not.
+
+Options -Indexes
+
+<FilesMatch ".">
+  Require all denied
+</FilesMatch>
+
+<Files "library.php">
+  Require all granted
+</Files>
