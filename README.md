@@ -23,8 +23,10 @@ step, no npm, no database.
 - **Genres** as filter pills; a book with several genres shows under each.
 - **Search** across titles, authors, genres and years. Any words, any order,
   accents and capitals ignored.
-- **Notes** with a small formatting toolbar (bold, italic, heading, lists,
-  quotes). Notes are private to the owner.
+- **Remarks** (public) and **notes** (private to the owner), each with a small
+  formatting toolbar (bold, italic, heading, lists, quotes).
+- **Read online**: a book can carry a link (Google Drive, Gutenberg, any web
+  address) shown to visitors. Only `http(s)` addresses are accepted.
 - **Scrolls**: the owner's own writings can stand on the shelf as rolled-up
   scrolls that unroll when opened.
 - **Currently reading**: books ticked as being read stand face out below the

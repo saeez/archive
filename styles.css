@@ -291,6 +291,9 @@ body.ready .reading { transition-delay: .6s; }
 }
 .facts dt { margin: 0; }
 .facts dd { margin: 4px 0 0; font: 500 1.3rem/1.2 var(--serif); }
+.facts .read { grid-column: 1 / -1; }
+.facts a { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); transition: border-color .6s var(--slow); }
+.facts a:hover { border-bottom-color: var(--ink); }
 .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 26px; padding: 0; list-style: none; }
 .tags li { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; }
 .remarks { margin: 0 0 8px; }

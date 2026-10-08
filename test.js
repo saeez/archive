@@ -9,8 +9,8 @@ const { spawn, spawnSync } = require("child_process");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 const cut = src.indexOf("/* ---- DOM ---- */");
 assert.ok(cut > 0, "DOM marker moved — update test.js");
-const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, format, blocks, spans, plain";
-const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, format, blocks, spans, plain } =
+const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain";
+const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain } =
   new Function(src.slice(0, cut) + `\nreturn { ${names} };`)();
 
 /* spines */
@@ -26,6 +26,9 @@ assert.strictEqual(dominant([...px([200, 30, 30], 30), ...px([240, 240, 240], 40
 assert.strictEqual(yearText(-375), "375 BC");
 assert.strictEqual(yearText(1866), "1866");
 assert.strictEqual(yearText(null), "");
+assert.strictEqual(linkHost("https://www.gutenberg.org/ebooks/2600"), "gutenberg.org", "a reading link shows its site");
+assert.strictEqual(linkHost("javascript:alert(1)"), "", "and only web addresses ever become links");
+assert.strictEqual(linkHost("drive.google.com/file/d/x"), "");
 
 /* genres: two at once are two genres, never a new combined one */
 assert.deepStrictEqual(genresOf({ genre: "Philosophy & religion" }), ["Philosophy", "Religion"]);
@@ -137,7 +140,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
 
     /* the librarian's books, notes and private things */
     const book = { id: "aaaaaaaa-1", kind: "book", title: " Dune ", author: "Frank Herbert", genre: "Sci-fi, Classics", pages: 412,
-                   rating: 5, notes: "My notes <script>alert(1)</script> <?php echo 'x'; ?>", year: 1965, isbn: "978-0441172719",
+                   rating: 5, notes: "My notes <script>alert(1)</script> <?php echo 'x'; ?>", remarks: "Worth it.", link: "https://drive.google.com/file/d/abc/view", year: 1965, isbn: "978-0441172719",
                    color: "#7a3b2a", private: false, reading: true, extra: "dropped", binding: "Paperback" };
     r = await post({ op: "put", item: { ...book, coverData: JPEG } }, { cookie: me });
     assert.strictEqual(r.status, 200);
@@ -158,6 +161,8 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     assert.deepStrictEqual(pub.items.map(i => i.id), ["aaaaaaaa-1"], "visitors never get private items");
     assert.ok(!("notes" in pub.items[0]) && !("private" in pub.items[0]), "or anyone's notes");
     assert.strictEqual(pub.items[0].reading, true, "visitors do see what you are reading");
+    assert.strictEqual(pub.items[0].remarks, "Worth it.", "remarks are public");
+    assert.strictEqual(pub.items[0].link, book.link, "so is the reading link");
     assert.ok(!JSON.stringify(pub).includes("Very personal") && !JSON.stringify(pub).includes("Secret"));
 
     /* covers */
@@ -199,6 +204,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
       [{ pages: 0 }, "a book needs pages"], [{ title: "  " }, "a book needs a title"], [{ rating: 6 }, "ratings go to 5"],
       [{ id: "../../etc" }, "ids are checked"], [{ year: 1.5 }, "years are whole"], [{ color: "red; x" }, "colours are #rrggbb"],
       [{ isbn: "<b>" }, "ISBNs are digits"], [{ private: "yes" }, "private is true or false"], [{ reading: 1 }, "so is reading"],
+      [{ link: "javascript:alert(1)" }, "links are web addresses"], [{ link: "drive.google.com/x" }, "with https://"],
       [{ coverData: "data:image/png;base64,iVBORw0KGgo=" }, "covers must be JPEG"],
       [{ coverData: "data:image/jpeg;base64,/9j/notreallyajpeg" }, "and really be one"],
     ]) assert.strictEqual((await post({ op: "put", item: { ...book, ...bad } }, { cookie: me })).status, 400, why);

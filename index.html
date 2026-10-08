@@ -95,6 +95,7 @@
           <p id="cover-status" class="note" role="status"></p>
         </div>
       </div>
+      <label class="field"><span class="label">Read online <small>(optional: Drive or website link, shown to everyone)</small></span><input name="link" type="url" maxlength="2000" pattern="https?://.+" placeholder="https://…" autocomplete="off"></label>
       <label class="check">
         <input type="checkbox" name="reading">
         <span><strong>Currently reading</strong> <small>It stands below the shelf until you untick this.</small></span>
@@ -126,7 +127,12 @@
     </fieldset>
 
     <div class="field">
-      <label class="label" for="notes">Notes / remarks <small>(always private)</small></label>
+      <label class="label" for="remarks">Remarks <small>(shown to everyone)</small></label>
+      <textarea id="remarks" name="remarks" rows="5" maxlength="20000" placeholder="What would you tell a friend about it?" data-rich></textarea>
+    </div>
+
+    <div class="field">
+      <label class="label" for="notes">Notes <small>(always private)</small></label>
       <textarea id="notes" name="notes" rows="6" maxlength="20000" placeholder="What stayed with you after reading it?" data-rich></textarea>
     </div>
 

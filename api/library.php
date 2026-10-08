@@ -1,7 +1,7 @@
 <?php
 /* The archive's only server code.
 
-   Anyone:     GET                  → the public shelf: no notes, no private items
+   Anyone:     GET                  → the public shelf (remarks and links too): no notes, no private items
                GET ?cover=<id>      → a cover image, unless its book is private
    Librarian:  POST {op:"login", password}   → a signed, HttpOnly cookie for 7 days
                POST {op:"logout"}
@@ -188,8 +188,8 @@ function clean($in, string $id, string $added, string $oldCover) {
   if ($kind !== 'book' && $kind !== 'scroll') return 'Kind must be book or scroll.';
 
   $out = ['id' => $id, 'kind' => $kind];
-  $limits = ['title' => 200, 'author' => 120, 'genre' => 120, 'notes' => 20000];
-  $limits += $kind === 'scroll' ? ['text' => 200000] : ['isbn' => 20];
+  $limits = ['title' => 200, 'author' => 120, 'genre' => 120, 'remarks' => 20000, 'notes' => 20000];
+  $limits += $kind === 'scroll' ? ['text' => 200000] : ['isbn' => 20, 'link' => 2000];
   foreach ($limits as $field => $max) {
     $v = $in[$field] ?? '';
     if (!is_string($v) || mb_strlen($v) > $max) return "The $field must be text of at most $max characters.";
@@ -217,6 +217,8 @@ function clean($in, string $id, string $added, string $oldCover) {
     if (!is_bool($reading)) return 'Reading must be true or false.';
     $out['reading'] = $reading;
     if (!preg_match('/^[0-9Xx -]*$/', $out['isbn'])) return 'An ISBN has only digits, X, spaces and dashes.';
+    /* a public link, so only web addresses: never javascript: or data: */
+    if ($out['link'] !== '' && !preg_match('~^https?://\S+$~i', $out['link'])) return 'A link must be a web address starting with https://.';
     $color = $in['color'] ?? '';
     if (!is_string($color) || !preg_match('/^(#[0-9a-f]{6})?$/', $color)) return 'Bad spine colour.';
     $out['color'] = $color;

@@ -20,6 +20,9 @@ const count = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
    and "Poetry / Sufism" each mean two, and the book shows under both pills. */
 const genresOf = it => (it.genre || "").split(/[,&/;]/).map(g => g.trim()).filter(Boolean).map(g => g[0].toUpperCase() + g.slice(1));
 const yearText = y => y == null ? "" : y < 0 ? `${-y} BC` : String(y);
+/* Where a book's reading link goes, shown as its site ("drive.google.com");
+   "" unless it is a real http(s) address, so javascript: links never render. */
+const linkHost = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.hostname.replace(/^www\./, "") : ""; } catch { return ""; } };
 
 /* The shelf runs genre by genre: A–Z by each item's first genre, Unsorted
    last. Within a genre, books stand by author surname, then scrolls follow
@@ -42,7 +45,7 @@ function arrange(items) {
 const fold = s => (s || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 const words = q => fold(q).split(/\s+/).filter(Boolean);
 const matches = (it, ws) => {
-  const hay = fold([it.title, it.author, it.genre, it.notes, it.text, yearText(it.year)].join("\n"));
+  const hay = fold([it.title, it.author, it.genre, it.remarks, it.notes, it.text, yearText(it.year)].join("\n"));
   return ws.every(w => hay.includes(w));
 };
 
@@ -496,8 +499,8 @@ function showCard(s) {
   if (it.author) parts.push(el("p", "by", it.author));
   parts.push(el("p", "label facts-line", facts.filter(Boolean).join(" · ")));
   if (it.rating) parts.push(stars(it.rating));
-  if (it.notes) {
-    const p = plain(it.notes);
+  if (it.remarks || it.notes) {
+    const p = plain(it.remarks || it.notes);
     parts.push(el("p", "excerpt", p.length > 120 ? p.slice(0, 118).trimEnd() + "…" : p));
   }
   card.replaceChildren(...parts);
@@ -529,6 +532,16 @@ function info(it) {
   if (it.kind === "book") fact("Pages", it.pages.toLocaleString());
   else fact("Words", it.text && it.text.split(/\s+/).filter(Boolean).length.toLocaleString());
   fact(it.kind === "book" ? "Shelved" : "Written", day(it.added));
+  const host = linkHost(it.link || "");
+  if (host) {
+    const d = el("div", "read"), dd = el("dd"), go = el("a", "", host + " ↗");
+    go.href = it.link;
+    go.target = "_blank";
+    go.rel = "noopener noreferrer";
+    dd.append(go);
+    d.append(el("dt", "label", "Read online"), dd);
+    facts.append(d);
+  }
   a.append(facts);
   if (it.rating) a.append(stars(it.rating));
   const tags = genresOf(it);
@@ -537,9 +550,10 @@ function info(it) {
     for (const t of tags) ul.append(marked("li", "label", t));
     a.append(ul);
   }
-  if (owner || it.notes) {           // notes are yours alone: visitors get no Remarks section at all
-    a.append(el("h3", "label remarks", "Remarks"), it.notes ? rich("notes", it.notes) : el("p", "empty", "No remarks yet."));
+  if (owner || it.remarks) {
+    a.append(el("h3", "label remarks", "Remarks"), it.remarks ? rich("notes", it.remarks) : el("p", "empty", "No remarks yet."));
   }
+  if (it.notes) a.append(el("h3", "label remarks", "Notes · private"), rich("notes", it.notes));   // the server sends notes only to you
   return a;
 }
 
@@ -797,7 +811,7 @@ function openEditor(it) {
   $("form-error").textContent = "";
   $("remove").hidden = !it;
   coverStatus("");
-  for (const f of ["kind", "title", "author", "year", "genre", "pages", "isbn", "text", "notes", "rating"]) {
+  for (const f of ["kind", "title", "author", "year", "genre", "pages", "isbn", "link", "text", "remarks", "notes", "rating"]) {
     if (it && it[f] != null) form.elements[f].value = it[f];
   }
   draft = { cover: it?.cover || "", coverData: null, color: it?.color || "" };
@@ -957,10 +971,11 @@ form.addEventListener("submit", async e => {
     year: f.get("year") === "" ? null : Number(f.get("year")),
     rating: Number(f.get("rating")) || 0,
     private: form.elements.private.checked,
+    remarks: f.get("remarks"),
     notes: f.get("notes"),
   };
   if (item.kind === "book") {
-    Object.assign(item, { pages: Number(f.get("pages")), isbn: f.get("isbn").trim(),
+    Object.assign(item, { pages: Number(f.get("pages")), isbn: f.get("isbn").trim(), link: f.get("link").trim(),
                           cover: draft.cover, color: draft.color, reading: form.elements.reading.checked });
     if (draft.coverData) item.coverData = draft.coverData;
   } else {
