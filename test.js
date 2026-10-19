@@ -9,8 +9,8 @@ const { spawn, spawnSync } = require("child_process");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 const cut = src.indexOf("/* ---- DOM ---- */");
 assert.ok(cut > 0, "DOM marker moved — update test.js");
-const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain";
-const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain } =
+const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass";
+const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass } =
   new Function(src.slice(0, cut) + `\nreturn { ${names} };`)();
 
 /* spines */
@@ -29,6 +29,32 @@ assert.strictEqual(yearText(null), "");
 assert.strictEqual(linkHost("https://www.gutenberg.org/ebooks/2600"), "gutenberg.org", "a reading link shows its site");
 assert.strictEqual(linkHost("javascript:alert(1)"), "", "and only web addresses ever become links");
 assert.strictEqual(linkHost("drive.google.com/file/d/x"), "");
+
+/* class recordings */
+assert.deepStrictEqual(modulesOf([{ module: "Cortisol", title: "a" }, { module: "Cortisol", title: "b" }, { module: "Oxytocin", title: "c" }, { module: "Cortisol", title: "d" }])
+  .map(m => [m.name, m.classes.map(c => c.i + c.title)]), [["Cortisol", ["0a", "1b"]], ["Oxytocin", ["2c"]], ["Cortisol", ["3d"]]], "classes in a row with one module form a group");
+assert.deepStrictEqual(modulesOf([{ title: "x" }]).map(m => m.name), [""], "a class without a module still shows");
+assert.strictEqual(youtubeId("https://youtu.be/Ju-Zem0r44c?si=abc"), "Ju-Zem0r44c");
+assert.strictEqual(youtubeId("https://www.youtube.com/watch?v=Doxpyx6jEj0&t=30"), "Doxpyx6jEj0");
+assert.strictEqual(youtubeId("https://youtube.com/live/Doxpyx6jEj0"), "Doxpyx6jEj0");
+assert.strictEqual(youtubeId("https://evil.example/watch?v=Doxpyx6jEj0"), "", "only YouTube plays inside the page");
+assert.strictEqual(youtubeId("https://youtube.com.evil.example/watch?v=Doxpyx6jEj0"), "");
+assert.strictEqual(youtubeId("javascript:alert(1)//youtu.be/Doxpyx6jEj0"), "");
+assert.strictEqual(youtubeId("https://youtu.be/short"), "", "a broken id is not played");
+assert.ok(classMatches({ title: "Serotonin · Hierarchy of Dominance", module: "Serotonin" }, words("dominance SEROTONIN")), "class titles are searchable");
+assert.ok(classMatches({ title: "Dopamine", tag: "Bonus · EI Batch 5" }, words("bonus dopamine")), "and their labels");
+assert.ok(!classMatches({ title: "Cortisol" }, words("oxytocin")));
+const ct = { name: "CT", batches: [{ name: "Batch 3", classes: [{ title: "a" }, { title: "b" }] }, { name: "Batch 5", classes: [{ title: "c" }] }] };
+const shape = c => c.batches.map(b => b.name + ":" + b.classes.map(x => x.title).join(""));
+assert.deepStrictEqual(shape(placeClass(ct, 1, -1, { title: "d" }, "Batch 5")), ["Batch 3:ab", "Batch 5:cd"], "a new class goes last in its batch");
+assert.deepStrictEqual(shape(placeClass(ct, 0, 0, { title: "A" }, "Batch 3")), ["Batch 3:Ab", "Batch 5:c"], "a changed class keeps its place");
+assert.deepStrictEqual(shape(placeClass(ct, 0, 1, { title: "b" }, "Batch 5")), ["Batch 3:a", "Batch 5:cb"], "or moves to another batch");
+assert.deepStrictEqual(shape(placeClass(ct, 1, -1, { title: "z" }, "Batch 2")), ["Batch 2:z", "Batch 3:ab", "Batch 5:c"], "a new batch name makes a batch, in number order");
+assert.deepStrictEqual(shape(placeClass(ct, 1, 0, null, "Batch 5")), ["Batch 3:ab"], "an emptied batch goes");
+assert.deepStrictEqual(shape(placeClass({ batches: [{ name: "B1", classes: [{ title: "x" }] }] }, 0, 0, null, "B1")), ["B1:"], "unless it is the last");
+assert.deepStrictEqual(shape(ct), ["Batch 3:ab", "Batch 5:c"], "the course itself is left as it was");
+const waiting = { batches: [{ name: "Batch 2", classes: [] }, ...ct.batches] };
+assert.deepStrictEqual(shape(placeClass(waiting, 2, -1, { title: "d" }, "Batch 5")), ["Batch 2:", "Batch 3:ab", "Batch 5:cd"], "a batch still waiting for its classes stays");
 
 /* genres: two at once are two genres, never a new combined one */
 assert.deepStrictEqual(genresOf({ genre: "Philosophy & religion" }), ["Philosophy", "Religion"]);
@@ -174,6 +200,36 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     assert.strictEqual((await get("?cover=cccccccc-3")).status, 404, "a private book's cover is hidden from visitors");
     assert.strictEqual((await get("?cover=cccccccc-3", me)).status, 200, "but not from you");
     assert.strictEqual((await get("?cover=../../api/config")).status, 404, "only real ids are looked up");
+
+    /* class recordings are for you alone */
+    assert.deepStrictEqual((await (await get("?classes", me)).json()).courses, [], "no classes file yet: none");
+    fs.writeFileSync(tmp + "/data/classes.php", GUARD + JSON.stringify([{ name: "Course", batches: [{ name: "Batch 1", classes: [{ title: "One", url: "https://youtu.be/secretvideo" }] }] }]));
+    r = await get("?classes");
+    assert.strictEqual(r.status, 404, "to visitors the class recordings do not exist");
+    assert.strictEqual(await r.text(), "", "not even an error message");
+    assert.ok(!JSON.stringify(await (await get()).json()).includes("secretvideo"), "and the public shelf never carries them");
+    assert.strictEqual((await get("?classes", "archive_owner=9999999999.deadbeef")).status, 404, "a made-up cookie gets nothing");
+    r = await fetch(site + "/data/classes.php");
+    assert.ok(r.status === 404 && !(await r.text()).includes("secretvideo"), "the classes file itself shows nothing");
+    assert.strictEqual((await (await get("?classes", me)).json()).courses[0].batches[0].classes[0].url, "https://youtu.be/secretvideo", "you get them");
+    const gaza = { module: "Fallacies", title: "Gaza", url: "https://youtu.be/xAOSgkyhSVY", notes: "https://1drv.ms/x/abc", tag: "", date: "2026-02-01", evil: "<script>" };
+    const course = (x = gaza, batch = { name: " Batch 5 " }) => ({ name: " قرآن فہمی ", teacher: " Mufti Kamran Shahzad ", extra: "dropped", batches: [{ ...batch, classes: [x] }] });
+    assert.strictEqual((await post({ op: "classes", courses: [course()] })).status, 401, "visitors can't change the classes");
+    r = await post({ op: "classes", courses: [course()] }, { cookie: me });
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual((await r.json()).courses, [{ name: "قرآن فہمی", teacher: "Mufti Kamran Shahzad", batches: [{ name: "Batch 5", classes: [
+      { module: "Fallacies", title: "Gaza", url: "https://youtu.be/xAOSgkyhSVY", notes: "https://1drv.ms/x/abc", date: "2026-02-01" }] }] }], "trimmed; unknown and empty fields dropped");
+    assert.ok(fs.existsSync(tmp + "/data/classes.bak.php"), "the version before is kept");
+    assert.ok(file("data/classes.php").startsWith(GUARD) && !file("data/classes.php").slice(GUARD.length).includes("<"), "the saved file can never read as PHP");
+    for (const bad of [{ url: "javascript:alert(1)" }, { notes: "javascript:alert(1)" }, { title: "" }, { url: "" }, { date: "yesterday" }, { title: ["x"] }]) {
+      r = await post({ op: "classes", courses: [course({ ...gaza, ...bad })] }, { cookie: me });
+      assert.strictEqual(r.status, 400, "refused: " + JSON.stringify(bad));
+    }
+    assert.strictEqual((await post({ op: "classes", courses: [course(gaza, { name: "" })] }, { cookie: me })).status, 400, "every batch needs a name");
+    assert.strictEqual((await post({ op: "classes", courses: [{ ...course(), teacher: ["x"] }] }, { cookie: me })).status, 400, "a teacher is a name");
+    assert.strictEqual((await post({ op: "classes", courses: [{ name: "X", batches: "nope" }] }, { cookie: me })).status, 400);
+    assert.strictEqual((await post({ op: "classes", courses: "nope" }, { cookie: me })).status, 400);
+    assert.strictEqual((await (await get("?classes", me)).json()).courses[0].batches[0].classes[0].title, "Gaza", "a refused save changes nothing");
 
     /* data files can't be read from the web, even if the server rules were missing */
     const stored = file("data/library.php");

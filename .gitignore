@@ -16,7 +16,6 @@ data/*
 *.webp
 *.ico
 CLAUDE.md
-test.js
 
 # Leftovers from macOS and editors.
 .DS_Store

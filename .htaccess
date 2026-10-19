@@ -25,8 +25,9 @@ DirectoryIndex index.html
   Header always set Strict-Transport-Security "max-age=31536000"
   # No inline script or style anywhere, so nothing typed into a title or a
   # note can ever run as code. Fonts are this site's own; covers are looked
-  # up on Open Library (which hands images over from archive.org).
-  Header always set Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  # up on Open Library (which hands images over from archive.org). Class
+  # videos play from YouTube's no-cookie address, and nothing else may be framed.
+  Header always set Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org; frame-src https://www.youtube-nocookie.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "DENY"
   Header always set Referrer-Policy "no-referrer"

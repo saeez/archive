@@ -1,6 +1,5 @@
 /* Saeed's Archive — one endless shelf. Books are 3D boxes with their real cover
-   and a spine coloured from it; writings stand among them as scrolls.
-   Changes are saved by api/library.php. */
+   and a spine coloured from it; writings stand among them as scrolls. */
 "use strict";
 
 const RAIL_H = 240;               // a typical book's height on the shelf, px
@@ -24,6 +23,45 @@ const yearText = y => y == null ? "" : y < 0 ? `${-y} BC` : String(y);
    "" unless it is a real http(s) address, so javascript: links never render. */
 const linkHost = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.hostname.replace(/^www\./, "") : ""; } catch { return ""; } };
 
+/* A course's classes under their modules: classes in a row with the same
+   module form one group. `i` is each class's place in the course. */
+const modulesOf = classes => classes.reduce((out, c, i) => {
+  if (!out.length || (c.module || "") !== out.at(-1).name) out.push({ name: c.module || "", classes: [] });
+  out.at(-1).classes.push({ ...c, i });
+  return out;
+}, []);
+
+/* A course after class `x` is saved into the batch named `to` (made if new;
+   batches stay in number order), or removed when x is null. `at` is its place
+   in batches[from] if it already exists (-1 if new); a class that stays in its
+   batch keeps its place. A batch this empties goes, unless it is the last;
+   a batch that was already empty (waiting for its classes) stays. */
+function placeClass(course, from, at, x, to) {
+  const c = structuredClone(course), src = c.batches[from], stays = x && at >= 0 && to === src.name;
+  if (at >= 0) src.classes.splice(at, 1, ...(stays ? [x] : []));
+  if (x && !stays) {
+    let dst = c.batches.find(b => b.name === to);
+    if (!dst) {
+      c.batches.push(dst = { name: to, classes: [] });
+      c.batches.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    }
+    dst.classes.push(x);
+  }
+  if (at >= 0 && !src.classes.length && c.batches.length > 1) c.batches.splice(c.batches.indexOf(src), 1);
+  return c;
+}
+
+/* The video id of a YouTube address ("" for anything else), so only YouTube
+   ever plays inside the page. */
+const youtubeId = u => {
+  try {
+    const x = new URL(u), host = x.hostname.replace(/^(www|m)\./, "");
+    const id = host === "youtu.be" ? x.pathname.slice(1)
+      : host === "youtube.com" ? x.searchParams.get("v") || (x.pathname.match(/^\/(?:embed|live|shorts)\/([^/]+)/) || [])[1] : "";
+    return /^https?:$/.test(x.protocol) && /^[\w-]{11}$/.test(id || "") ? id : "";
+  } catch { return ""; }
+};
+
 /* The shelf runs genre by genre: A–Z by each item's first genre, Unsorted
    last. Within a genre, books stand by author surname, then scrolls follow
    in the order they were written. */
@@ -46,6 +84,10 @@ const fold = s => (s || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(
 const words = q => fold(q).split(/\s+/).filter(Boolean);
 const matches = (it, ws) => {
   const hay = fold([it.title, it.author, it.genre, it.remarks, it.notes, it.text, yearText(it.year)].join("\n"));
+  return ws.every(w => hay.includes(w));
+};
+const classMatches = (c, ws) => {
+  const hay = fold([c.title, c.module, c.tag].join("\n"));
   return ws.every(w => hay.includes(w));
 };
 
@@ -195,7 +237,7 @@ const GAP = 6;                    // space after each thing on the shelf, px (ma
 
 let items = [];
 let genre = "";                  // the genre chosen above the shelf, lower-case; "" for all
-let owner = false;                // signed in? The server decides; this only shows or hides the tools
+let owner = false;
 let editing = null, dirty = false, privateTouched = false;
 let draft = { cover: "", coverData: null, color: "" };   // the cover being edited
 let looping = false, offset = 0, glide = 0, vel = 0, idleUntil = 0, lastT = 0;
@@ -357,9 +399,9 @@ function render() {
   hideCard();
   layout();
 
-  const books = items.filter(i => i.kind === "book");
+  const books = items.filter(i => i.kind === "book"), found = showClasses();
   $("stats").textContent = !items.length ? "An empty shelf"
-    : ws.length || g ? `${shown} of ${items.length} found`
+    : ws.length || g ? `${shown} of ${items.length} found${found ? ` · ${found} class${found === 1 ? "" : "es"}` : ""}`
     : [count(books.length, "book"), items.length > books.length && count(items.length - books.length, "scroll"),
        count(books.reduce((n, b) => n + b.pages, 0), "page")].filter(Boolean).join(" · ");
 }
@@ -553,7 +595,7 @@ function info(it) {
   if (owner || it.remarks) {
     a.append(el("h3", "label remarks", "Remarks"), it.remarks ? rich("notes", it.remarks) : el("p", "empty", "No remarks yet."));
   }
-  if (it.notes) a.append(el("h3", "label remarks", "Notes · private"), rich("notes", it.notes));   // the server sends notes only to you
+  if (it.notes) a.append(el("h3", "label remarks", "Notes · private"), rich("notes", it.notes));
   return a;
 }
 
@@ -640,7 +682,8 @@ function finishDetail() {
 async function closeDetail() {
   if (closing || !detail.open) return;
   closing = true;
-  const s = detailSlot, box = detail.querySelector(".stage .box"), sheet = detail.querySelector(".sheet");
+  detail.querySelector("iframe")?.remove();
+  const s = detailSlot, box = detail.querySelector(".stage .box"), sheet = detail.querySelector(".sheet"), win = detail.querySelector(".course-window");
   if (!calm.matches) {
     let dim;
     try { dim = detail.animate({ opacity: [1, 0] }, { duration: 1300, pseudoElement: "::backdrop", fill: "forwards" }); } catch {}
@@ -661,6 +704,8 @@ async function closeDetail() {
       ], { duration: 800, easing: "cubic-bezier(.6,0,.4,1)", fill: "forwards" }).finished.catch(() => {});
       await detail.querySelector(".parchment").animate([{ opacity: 1 }, { opacity: 0, transform: "translateY(24px)" }],
         { duration: 450, fill: "forwards" }).finished.catch(() => {});
+    } else if (win) {
+      await win.animate([{ opacity: 1 }, { opacity: 0, transform: "translateY(24px)" }], { duration: 450, fill: "forwards" }).finished.catch(() => {});
     }
     finishDetail();
     dim?.cancel();
@@ -729,8 +774,6 @@ function glow(id) {
 
 /* ---- saving ---- */
 
-/* The server answers every request with {owner, items}: the whole library
-   when you are signed in, the public shelf when you are not. */
 async function send(body) {
   let r;
   try {
@@ -744,20 +787,20 @@ async function send(body) {
     openSignin();
     throw new Error("You were signed out. Sign in, then save again: nothing you typed is lost.");
   }
-  if (!r.ok || !Array.isArray(data?.items)) throw new Error(data?.error || (r.ok
+  if (!r.ok || !data) throw new Error(data?.error || (r.ok
     ? "This server can't run PHP, so nothing was saved. Start the site with: php -S localhost:8000"
     : `Something went wrong (${r.status}).`));
-  items = data.items;
-  setOwner(data.owner);
+  if (Array.isArray(data.items)) { items = data.items; setOwner(data.owner); }
+  return data;
 }
 
-/* ---- signing in ----
-   There is no sign-in button: open the site at #signin. What you may see and
-   change is decided by the server; this only shows or hides the tools. */
+/* ---- signing in ---- */
 
 function setOwner(v) {
+  const was = owner;
   owner = !!v;
   document.body.classList.toggle("owner", owner);
+  if (owner !== was) loadClasses();
 }
 
 function openSignin() {
@@ -794,6 +837,239 @@ $("signout").onclick = async () => {
 };
 addEventListener("hashchange", checkHash);
 
+/* ---- class recordings ---- */
+
+let courses = [];
+let course = -1, batch = -1, playing = null;   // the course open in the window, its batch on show, and { b, i } of the class playing
+
+async function loadClasses() {
+  let got = [];
+  if (owner) try {
+    const r = await fetch("api/library.php?classes", { cache: "no-store" });
+    if (r.ok) got = (await r.json()).courses;
+  } catch {}
+  courses = owner && Array.isArray(got) ? got.filter(c => c && Array.isArray(c.batches) && c.batches.length) : [];
+  showClasses();
+}
+
+function outLink(url, cls) {
+  const a = el("a", cls);
+  if (linkHost(url)) Object.assign(a, { href: url, target: "_blank", rel: "noopener noreferrer" });
+  return a;
+}
+function notesLink(url) {
+  const a = outLink(url, "icon-btn notes-link");
+  a.title = `Notes (${linkHost(url)})`;
+  a.setAttribute("aria-label", a.title);
+  a.append(icon("i-file"));
+  return a;
+}
+const auto = e => { e.dir = "auto"; return e; };   // names may be Urdu, read right to left
+const numbered = (e, n, title, ws) => {             // a class's number in its batch, then its title
+  e.append(el("span", "lesson-n", String(n)), auto(markInto(el("span", "lesson-text"), title, ws)));
+  return e;
+};
+const classesOf = c => c.batches.flatMap(b => b.classes);
+const classHits = ws => !ws.length ? [] : courses.flatMap((c, ci) =>
+  c.batches.flatMap((b, bi) => b.classes.flatMap((x, i) => classMatches(x, ws) ? [{ ci, bi, i, x }] : [])));
+
+/* The courses as cards; while searching, the classes that match beneath them.
+   Returns how many classes match. */
+function showClasses() {
+  $("classes").hidden = !courses.length;
+  $("courses").replaceChildren(...courses.map((c, ci) => {
+    const b = el("button", "course-card"), last = c.batches.at(-1).classes.at(-1);
+    b.type = "button";
+    b.onclick = () => openCourse(ci);
+    b.append(auto(el("span", "course-name", c.name)));
+    if (c.teacher) b.append(el("span", "course-teacher", c.teacher));
+    b.append(el("span", "label", count(classesOf(c).length, "recording")));
+    if (last) b.append(el("span", "course-latest", "Latest: " + last.title));
+    return b;
+  }));
+  const ws = words(search.value), found = classHits(ws);
+  $("class-hits").hidden = !found.length;
+  $("class-hit-list").replaceChildren(...found.map(({ ci, bi, i, x }) => {
+    const c = courses[ci], li = el("li"), b = el("button", "hit");
+    b.type = "button";
+    b.onclick = () => openCourse(ci, bi, i);
+    b.append(el("span", "label", [c.name, c.batches.length > 1 && c.batches[bi].name, x.module].filter(Boolean).join(" · ")),
+      numbered(el("span", "hit-title"), i + 1, x.title, ws));
+    li.append(b);
+    return li;
+  }));
+  return found.length;
+}
+
+/* A course opens as a window over the page, like a scroll, on its newest batch. */
+function openCourse(ci, bi = -1, play = -1) {
+  const c = courses[ci];
+  if (!c || detail.open) return;
+  course = ci;
+  batch = bi >= 0 ? bi : c.batches.length - 1;
+  playing = null;
+  const tools = el("div", "detail-tools"), pen = iconBtn("i-pen", "Add or change a class"), close = iconBtn("i-close", "Close");
+  pen.onclick = () => openClassEditor(playing?.b === batch ? playing.i : -1);
+  close.onclick = closeDetail;
+  tools.append(pen, close);
+  const win = el("article", "course-window"), top = el("header", "course-top"), body = el("div", "course-body");
+  top.append(el("p", "label"), auto(el("h2", "", c.name)));
+  if (c.teacher) top.append(el("p", "course-teacher", c.teacher));
+  top.append(el("nav", "batch-tabs"));
+  body.append(el("div", "player"), el("div", "class-list"));
+  win.append(top, body);
+  detail.className = "course";
+  detail.replaceChildren(tools, win);
+  fillClassList();
+  detail.showModal();
+  if (!calm.matches) win.animate([{ opacity: 0, transform: "translateY(30px)" }, { opacity: 1, transform: "none" }], { duration: 900, easing: "cubic-bezier(.22,.61,.36,1)" });
+  if (play >= 0) playClass(play);
+}
+
+/* The batch on show: a pill for each batch (when there are several), then two
+   columns: the class (click it to play it here) and its notes, if any. */
+function fillClassList() {
+  const c = courses[course], b = c?.batches[batch], list = detail.querySelector(".class-list");
+  if (!b || !list) return;
+  detail.querySelector(".course-top .label").textContent = `${b.name} · ${count(b.classes.length, "recording")}`;
+  detail.querySelector(".batch-tabs").replaceChildren(...(c.batches.length < 2 ? [] : c.batches.map((x, j) => {
+    const t = el("button", "chip", x.name);
+    t.type = "button";
+    t.setAttribute("aria-pressed", j === batch);
+    t.onclick = () => { batch = j; fillClassList(); list.scrollTop = list.parentElement.scrollTop = 0; };
+    return t;
+  })));
+  const ws = words(search.value), groups = el("ol", "modules");
+  for (const m of modulesOf(b.classes)) {
+    const li = el("li", "module"), ol = el("ol", "lessons");
+    for (const x of m.classes) {
+      const row = el("li", "lesson"), id = youtubeId(x.url);
+      const t = id ? el("button", "lesson-title") : outLink(x.url, "lesson-title");
+      if (id) { t.type = "button"; t.onclick = () => playClass(x.i); }
+      numbered(t, x.i + 1, x.title, ws);
+      if (x.tag) t.lastChild.append(el("span", "tag", x.tag));
+      if (playing?.b === batch && playing.i === x.i) t.setAttribute("aria-current", "true");
+      row.append(t);
+      if (linkHost(x.notes || "")) row.append(notesLink(x.notes));
+      ol.append(row);
+    }
+    if (m.name) li.append(el("h3", "label module-name", m.name));
+    li.append(ol);
+    groups.append(li);
+  }
+  list.replaceChildren(b.classes.length ? groups : el("p", "label class-empty", "No classes yet. Press the pen to add the first."));
+}
+
+/* The video plays on the left; the classes slide over to the right. */
+function playClass(i) {
+  const win = detail.querySelector(".course-window"), x = courses[course]?.batches[batch]?.classes[i], id = x && youtubeId(x.url);
+  if (!win || !id) return;
+  const list = win.querySelector(".class-list"), player = win.querySelector(".player");
+  const from = list.getBoundingClientRect(), first = !win.classList.contains("playing");
+  playing = { b: batch, i };
+  const screen = el("div", "screen"), frame = el("iframe");
+  Object.assign(frame, {
+    src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`, title: x.title,
+    allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowFullscreen: true,
+    referrerPolicy: "strict-origin-when-cross-origin",   // YouTube refuses to play for a page that sends no referrer
+  });
+  screen.append(frame);
+  player.replaceChildren(screen, el("div", "now"));
+  showNow();
+  win.classList.add("playing");
+  fillClassList();
+  list.querySelector("[aria-current]")?.scrollIntoView({ block: "nearest" });
+  if (!first || calm.matches) return;
+  const to = list.getBoundingClientRect(), ease = "cubic-bezier(.22,.61,.36,1)";
+  list.animate([{ transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)` }, { transform: "none" }], { duration: 900, easing: ease });
+  player.animate([{ opacity: 0, transform: "translateX(-28px)" }, { opacity: 1, transform: "none" }], { duration: 900, delay: 150, easing: ease, fill: "backwards" });
+}
+
+/* Under the video: what is playing, and its notes. */
+function showNow() {
+  const c = courses[course], now = detail.querySelector(".now"), x = playing && c?.batches[playing.b]?.classes[playing.i];
+  if (!now || !x) return;
+  const text = el("div");
+  text.append(el("p", "label", [c.batches.length > 1 && c.batches[playing.b].name, x.module].filter(Boolean).join(" · ") || c.name), auto(el("h3", "", x.title)));
+  now.replaceChildren(text);
+  if (linkHost(x.notes || "")) now.append(notesLink(x.notes));
+}
+
+/* ---- adding and changing classes ---- */
+
+const classEditor = $("class-editor"), classForm = $("class-form"), which = classForm.elements.which;
+let editingClass = -1;
+
+function openClassEditor(i = -1) {
+  const c = courses[course], b = c?.batches[batch];
+  if (!b) return;
+  which.replaceChildren(new Option("A new class", -1), ...b.classes.map((x, j) => new Option(`${j + 1}. ${x.title}`, j)));
+  which.value = i;
+  $("class-batches").replaceChildren(...c.batches.map(x => new Option(x.name)));
+  $("class-modules").replaceChildren(...[...new Set(classesOf(c).map(x => x.module).filter(Boolean))].map(m => new Option(m)));
+  $("class-course").textContent = c.name;
+  fillClassForm();
+  classEditor.showModal();
+}
+
+function fillClassForm() {
+  const b = courses[course].batches[batch], x = b.classes[+which.value];
+  editingClass = x ? +which.value : -1;
+  for (const k of ["title", "url", "notes", "module", "tag"]) classForm.elements[k].value = x?.[k] || "";
+  classForm.elements.batch.value = b.name;
+  if (!x) classForm.elements.module.value = b.classes.at(-1)?.module || "";
+  $("class-form-title").textContent = x ? "Change a class" : "Add a class";
+  $("class-remove").hidden = !x;
+  $("class-error").textContent = "";
+  dirty = false;
+}
+
+/* Saves the open course as `next`, then shows the batch named `to`; a class
+   that was playing stays marked wherever it now stands. */
+async function saveCourses(next, to) {
+  const btn = $("class-save"), was = playing && courses[course].batches[playing.b]?.classes[playing.i]?.url;
+  btn.disabled = true;
+  $("class-error").textContent = "";
+  try {
+    courses = (await send({ op: "classes", courses: courses.map((c, j) => j === course ? next : c) })).courses;
+  } catch (err) {
+    $("class-error").textContent = err.message;   // the form stays open, so nothing typed is lost
+    return;
+  } finally {
+    btn.disabled = false;
+  }
+  const c = courses[course];
+  batch = Math.max(0, c.batches.findIndex(b => b.name === to));
+  playing = null;
+  c.batches.forEach((b, bi) => { const i = b.classes.findIndex(x => x.url === was); if (was && i >= 0 && !playing) playing = { b: bi, i }; });
+  dirty = false;
+  classEditor.close();
+  showClasses();
+  fillClassList();
+  showNow();
+}
+
+which.onchange = () => { if (discard()) fillClassForm(); else which.value = editingClass; };
+classForm.addEventListener("input", e => { if (e.target !== which) dirty = true; });
+classForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const b = courses[course].batches[batch], old = b.classes[editingClass], x = {};
+  for (const k of ["module", "title", "url", "tag", "notes"]) {
+    const v = classForm.elements[k].value.trim();
+    if (v) x[k] = v;
+  }
+  if (old?.date) x.date = old.date;
+  const to = classForm.elements.batch.value.trim() || b.name;
+  saveCourses(placeClass(courses[course], batch, editingClass, x, to), to);
+});
+$("class-remove").onclick = () => {
+  const b = courses[course].batches[batch], x = b.classes[editingClass];
+  if (!x || !confirm(`Remove “${x.title}” from ${b.name}?`)) return;
+  saveCourses(placeClass(courses[course], batch, editingClass, null, b.name), b.name);
+};
+$("class-cancel").onclick = () => { if (discard()) classEditor.close(); };
+classEditor.addEventListener("cancel", e => { if (!discard()) e.preventDefault(); });
+
 /* ---- the editor ---- */
 
 const coverStatus = t => { $("cover-status").textContent = t; };
@@ -829,7 +1105,7 @@ function openEditor(it) {
 
 function setKind() {
   const k = form.elements.kind.value;
-  if (!editing && !privateTouched) form.elements.private.checked = k === "scroll";   // your writings start private
+  if (!editing && !privateTouched) form.elements.private.checked = k === "scroll";
   $("for-book").disabled = k !== "book";
   $("for-scroll").disabled = k !== "scroll";
 }
@@ -1021,11 +1297,12 @@ function typeHeading() {
     }
   };
   if (calm.matches) { show(total); return done(); }
-  let i = 0;
+  let i = parts[0][0].length;   // "Welcome to my" stands from the start; only "archive." is written
+  show(i);
   const step = () => {
     show(++i);
     if (i >= total) return setTimeout(done, 300);
-    setTimeout(step, 70 + Math.random() * 80 + (i === 14 ? 260 : 0));
+    setTimeout(step, 90 + Math.random() * 90);
   };
   setTimeout(step, 700);
 }

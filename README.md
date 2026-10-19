@@ -32,6 +32,10 @@ step, no npm, no database.
 - **Currently reading**: books ticked as being read stand face out below the
   shelf, covers showing, until they are unticked.
 - **Private items**: any book or scroll can be marked private.
+- **Courses** (owner only): each course is a card that opens as a window,
+  with a pill per batch when it has several. Click a class and it plays right
+  there (the list slides aside); a notes link sits beside its class. Search
+  finds class titles too. Add or change classes with the pen in the course window.
 
 ## How it's built
 
@@ -48,7 +52,7 @@ step, no npm, no database.
 
 ## Security
 
-- **Visitors never receive notes or private items.** They are removed on the
+- **Visitors never receive notes, private items or class recordings.** They are removed on the
   server before anything is sent; nothing is merely hidden on screen.
 - **Password**: only a bcrypt hash is stored (`api/config.php`, never in this
   repository). After 5 wrong attempts from one address, or 30 in total, sign-in
@@ -64,12 +68,14 @@ step, no npm, no database.
 - **Strict Content Security Policy**: no inline scripts or styles, so nothing
   typed into a title or note can run as code; user text is never inserted as HTML.
 - **No third parties for visitors**: fonts are self-hosted. Open Library is
-  only contacted from the owner's browser while editing.
+  only contacted from the owner's browser while editing, and YouTube (its
+  no-cookie address, the only site allowed in a frame) only when the owner plays a class.
 - **Not indexed**: `robots.txt`, a `noindex` tag and an `X-Robots-Tag` header.
 
 ## Not in this repository
 
-- **`data/`**: the library itself (books, notes, private items, covers). The
+- **`data/`**: the library itself (books, notes, private items, covers, class
+  recordings). The
   server creates it on the first save, so a fresh copy starts with an empty shelf.
 - **`api/config.php`**: the password hash.
 - **Images**: the site icons (`favicon.ico`, `icon-32.png`, `icon-192.png`,
@@ -116,6 +122,19 @@ overwritten. To back up, download `data/` from the server.
 "FTP-SSL (Explicit AUTH TLS)", server `ftp.simply.com`, port 21, and the
 webhosting login from Administration → Login details (the username is the
 domain name). A subdomain has its own folder at the top of the FTP space.
+
+## Adding a class
+
+Open the course and press the pen. Pick **A new class** (or a class to change),
+fill in the title and the video link, and optionally a notes link, the module
+and a label such as *Bonus*. Classes in a row with the same module are grouped
+together. A YouTube link plays inside the page; any other link opens in a new tab.
+The batch field says which batch the class belongs to; a new name (say
+*Batch 2*) starts a new batch.
+
+The site saves classes in `data/classes.php` on the server (with the previous
+version in `classes.bak.php`). Upload that file only once: after that the
+site keeps it, and uploading your local copy again would undo changes made online.
 
 ## Tests
 

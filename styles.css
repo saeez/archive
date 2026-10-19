@@ -63,7 +63,7 @@
   --muted: oklch(0.47 0.03 60);
   --line: oklch(0.86 0.02 75);
   --accent: oklch(0.52 0.1 42);
-  --serif: "Cormorant Garamond", "Iowan Old Style", Palatino, Georgia, serif;
+  --serif: "Cormorant Garamond", "Iowan Old Style", Palatino, Georgia, "Noto Nastaliq Urdu", serif;
   --sans: Karla, system-ui, sans-serif;
   --mono: "Space Mono", ui-monospace, Menlo, monospace;
   --slow: cubic-bezier(.22, .61, .36, 1);
@@ -158,7 +158,6 @@ body:not(.owner) .owner-only {
   display: none !important;
 }
 
-/* tools only; the server enforces who may change what */
 .sprite {
   position: absolute;
   width: 0;
@@ -752,6 +751,345 @@ body.ready .reading {
   transition-delay: .6s;
 }
 
+/* ---- class recordings ---- */
+
+.classes {
+  max-width: 960px;
+  margin: clamp(80px, 13vh, 140px) auto 0;
+  padding: 0 clamp(16px, 5vw, 64px);
+}
+
+.classes > h2 {
+  margin: 0 0 26px;
+  text-align: center;
+}
+
+.courses {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
+
+/* a course: a card that opens its window */
+.course-card {
+  container-type: inline-size;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 26px 28px 24px;
+  text-align: start;
+  font: inherit;
+  color: var(--ink);
+  background: oklch(0.985 0.008 85 / .6);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: border-color .6s var(--slow), background .6s var(--slow), transform .8s var(--slow), box-shadow .8s var(--slow);
+}
+
+.course-card:hover {
+  border-color: var(--ink);
+  background: var(--paper-3);
+  transform: translateY(-3px);
+  box-shadow: 0 22px 44px -28px oklch(0.4 0.05 60 / .5);
+}
+
+.course-name {
+  margin-bottom: 4px;
+  font: 500 clamp(1.9rem, 3.6vw, 2.5rem)/1.05 var(--serif);
+}
+
+.course-teacher {
+  margin: 0 0 4px;
+  font: 400 1.2rem/1.3 var(--serif);
+  color: var(--muted);
+}
+
+.course-latest {
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font: italic 400 1.05rem/1.35 var(--serif);
+  color: var(--muted);
+}
+
+/* while searching: the classes that match */
+.class-hits {
+  margin-top: 36px;
+}
+
+.class-hits h3 {
+  margin: 0 0 10px;
+}
+
+.class-hits ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.hit {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 6px;
+  text-align: start;
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background .6s var(--slow);
+}
+
+.hit:hover {
+  background: oklch(0.985 0.008 85 / .7);
+}
+
+.hit-title {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  font: 500 1.2rem/1.3 var(--serif);
+}
+
+body.ready .classes {
+  transition-delay: .7s;
+}
+
+/* a course, opened: its classes, and the class playing */
+.course-window {
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: 24px 0;
+  overflow: hidden;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 40px 90px -36px oklch(0.35 0.05 60 / .55);
+}
+
+.course-window.playing {
+  height: calc(100dvh - 48px);
+}
+
+.course-top {
+  padding: 30px 110px 22px clamp(20px, 4vw, 48px);
+  border-bottom: 1px solid var(--line);
+}
+
+.course-top p {
+  margin: 0;
+}
+
+.course-top h2 {
+  margin: 4px 0 0;
+  font: 500 clamp(2rem, 4.4vw, 3rem)/1.05 var(--serif);
+}
+
+.batch-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.batch-tabs:empty {
+  display: none;
+}
+
+.course-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+  padding: 8px clamp(20px, 4vw, 48px) 32px;
+}
+
+.player {
+  display: none;
+}
+
+.playing .course-body {
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  grid-template-rows: minmax(0, 1fr);
+  justify-content: stretch;
+  gap: 36px;
+  padding-top: 28px;
+}
+
+.playing .player {
+  display: block;
+  overflow: auto;
+}
+
+.playing .class-list {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+
+.screen {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 14px;
+  background: oklch(0.22 0.02 55);
+  box-shadow: 0 30px 60px -34px oklch(0.3 0.05 55 / .6);
+}
+
+.screen iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.now {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.now p {
+  margin: 0;
+}
+
+.now h3 {
+  margin: 4px 0 0;
+  font: 500 clamp(1.4rem, 2.4vw, 1.9rem)/1.15 var(--serif);
+}
+
+.class-empty {
+  margin: 40px 0;
+  text-align: center;
+}
+
+.modules,
+.lessons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.module {
+  padding: 20px 0 8px;
+}
+
+.module + .module {
+  border-top: 1px solid var(--line);
+}
+
+.module-name {
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+
+/* two columns: the class, and its notes */
+.lesson {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lesson-title {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  margin-left: -12px;
+  padding: 9px 12px;
+  text-align: start;
+  font: 500 1.18rem/1.3 var(--serif);
+  color: var(--ink);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background .6s var(--slow);
+}
+
+.lesson-title:hover {
+  background: oklch(0.93 0.02 76 / .55);
+}
+
+.lesson-title[aria-current="true"] {
+  background: oklch(0.92 0.018 75 / .85);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.playing .lesson-title {
+  font-size: 1.05rem;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 0 8px;
+  border: 1px solid oklch(0.52 0.1 42 / .35);
+  border-radius: 999px;
+  font: 400 9.5px/1.8 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  vertical-align: 3px;
+  white-space: nowrap;
+}
+
+.notes-link {
+  width: 34px;
+  height: 34px;
+}
+
+.notes-link .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.lesson-n {
+  flex: none;
+  min-width: 1.7em;
+  text-align: end;
+  font: 400 11px/1 var(--mono);
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+
+.lesson-text {
+  min-width: 0;
+}
+
+/* Urdu stands in Nastaliq, whose letters climb far higher than Latin ones */
+:is(.course-name, .course-top h2, .now h3, .lesson-text):dir(rtl) {
+  line-height: 1.9;
+}
+
+/* An Urdu course name keeps to one line: it is about 11 times as wide as its
+   size, so the size follows the card's inner width (100cqi).
+   ponytail: fits names up to about this one's length; longer ones need a JS fit */
+.course-name:dir(rtl) {
+  font-size: min(2rem, 100cqi / 11.5);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .playing .course-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 18px;
+  }
+}
+
 /* ---- the floating card ---- */
 
 .card {
@@ -833,7 +1171,8 @@ body.ready .reading {
 
 #detail::backdrop,
 #editor::backdrop,
-#signin::backdrop {
+#signin::backdrop,
+#class-editor::backdrop {
   background: oklch(0.95 0.015 78 / .55);
   backdrop-filter: blur(14px) saturate(.85);
   animation: fade 1.1s var(--slow);
@@ -1095,7 +1434,8 @@ body.ready .reading {
 /* ---- the editor ---- */
 
 #editor,
-#signin {
+#signin,
+#class-editor {
   padding: 0;
   border: 0;
   background: none;
@@ -1182,6 +1522,7 @@ body.ready .reading {
 }
 
 .form-card input:not([type="radio"]):not([type="file"]):not([type="checkbox"]),
+.form-card select,
 .form-card textarea {
   display: block;
   width: 100%;
@@ -1194,6 +1535,7 @@ body.ready .reading {
 }
 
 .form-card input:focus,
+.form-card select:focus,
 .form-card textarea:focus {
   border-color: oklch(0.6 0.04 62);
   outline: none;
@@ -1219,6 +1561,10 @@ body.ready .reading {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 14px;
+}
+
+.row.three {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 @media (max-width: 520px) {

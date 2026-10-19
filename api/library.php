@@ -3,7 +3,9 @@
 
    Anyone:     GET                  → the public shelf (remarks and links too): no notes, no private items
                GET ?cover=<id>      → a cover image, unless its book is private
-   Librarian:  POST {op:"login", password}   → a signed, HttpOnly cookie for 7 days
+   Librarian:  GET ?classes         → {courses}: class recordings, from data/classes.php
+               POST {op:"classes", courses}  → saves them all (classes.bak.php keeps the last)
+               POST {op:"login", password}   → a signed, HttpOnly cookie for 7 days
                POST {op:"logout"}
                POST {op:"put", item} | {op:"delete", id}
    Lists and edits answer {owner, items}.
@@ -20,6 +22,7 @@ header_remove('X-Powered-By');
 const DATA      = __DIR__ . '/../data/library.php';
 const COVERS    = __DIR__ . '/../data/covers';
 const THROTTLE  = __DIR__ . '/../data/throttle.php';
+const CLASSES   = __DIR__ . '/../data/classes.php';
 /* The first line of every data file. Should a misconfigured server ever serve
    one, PHP runs this line and nothing of the file is shown. */
 const GUARD     = "<?php http_response_code(404); exit; ?>\n";
@@ -107,6 +110,13 @@ $damaged = $owner ? 'data/library.php is damaged. data/library.bak.php holds the
 /* ---- reading ---- */
 
 if ($method === 'GET') {
+  /* class recordings are yours alone: to anyone else they do not exist */
+  if (isset($_GET['classes'])) {
+    if (!$owner) reply(404);
+    $courses = read_data(CLASSES);
+    if ($courses === false) reply(500, ['error' => 'data/classes.php is damaged.']);
+    reply(200, ['courses' => $courses]);
+  }
   $items = read_data(DATA);
   if ($items === false) reply(500, ['error' => $damaged]);
   if (!isset($_GET['cover'])) reply(200, ['owner' => $owner, 'items' => view($items, $owner)]);
@@ -178,6 +188,51 @@ if ($op === 'login') {
 }
 
 if (!$owner) reply(401, ['error' => 'Sign in to make changes.']);
+
+/* Class recordings are saved whole: the page sends every course back, and
+   only these fields survive. Links must be web addresses (never javascript:). */
+function clean_courses($in) {
+  if (!is_array($in) || !array_is_list($in) || count($in) > 100) return 'Bad courses.';
+  $text = fn($v, int $max) => is_string($v) && mb_strlen($v) <= $max ? trim($v) : null;
+  $web = fn(string $v) => $v === '' || preg_match('~^https?://\S+$~i', $v);
+  $list = fn($v, int $max) => is_array($v) && array_is_list($v) && count($v) <= $max;
+  $out = [];
+  foreach ($in as $c) {
+    $name = $text($c['name'] ?? null, 120);
+    $teacher = $text($c['teacher'] ?? '', 120);
+    if (!$name || $teacher === null || !$list($c['batches'] ?? null, 50)) return 'Bad course.';
+    $batches = [];
+    foreach ($c['batches'] as $b) {
+      $batch = $text($b['name'] ?? null, 60);
+      if (!$batch || !$list($b['classes'] ?? null, 2000)) return 'Every batch needs a name.';
+      $classes = [];
+      foreach ($b['classes'] as $x) {
+        $f = [];
+        foreach (['module' => 120, 'title' => 300, 'url' => 2000, 'tag' => 60, 'notes' => 2000, 'date' => 10] as $k => $max) {
+          $v = $text($x[$k] ?? '', $max);
+          if ($v === null) return "A class's $k must be text of at most $max characters.";
+          if ($v !== '') $f[$k] = $v;
+        }
+        if (($f['title'] ?? '') === '' || ($f['url'] ?? '') === '') return 'Every class needs a title and a video link.';
+        if (!$web($f['url']) || !$web($f['notes'] ?? '')) return 'Links must be web addresses starting with https://.';
+        if (isset($f['date']) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $f['date'])) return 'Bad date.';
+        $classes[] = $f;
+      }
+      $batches[] = ['name' => $batch, 'classes' => $classes];
+    }
+    $out[] = ['name' => $name] + ($teacher === '' ? [] : ['teacher' => $teacher]) + ['batches' => $batches];
+  }
+  return $out;
+}
+
+if ($op === 'classes') {
+  $courses = clean_courses($req['courses'] ?? null);
+  if (is_string($courses)) reply(400, ['error' => $courses]);
+  if (read_data(CLASSES) === false) reply(500, ['error' => 'data/classes.php is damaged. Nothing was changed.']);
+  if (is_file(CLASSES)) copy(CLASSES, "$dir/classes.bak.php");
+  if (!write_data(CLASSES, $courses)) reply(500, ['error' => 'Could not save. Nothing was changed.']);
+  reply(200, ['courses' => $courses]);
+}
 
 /* Returns the cleaned item, or a string saying what is wrong with it. Only
    these fields are kept; anything else sent is dropped. A cover can only be
