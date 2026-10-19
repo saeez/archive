@@ -512,7 +512,7 @@ function placeCard() {
   if (!cardFor.isConnected) return hideCard();
   const r = cardFor.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
   const x = Math.max(16, Math.min(innerWidth - w - 16, r.left + r.width / 2 - w / 2));
-  const y = r.top - h - 40 > 12 ? r.top - h - 40 : Math.min(innerHeight - h - 12, r.bottom + 18);
+  const y = r.top - h - 70 > 12 ? r.top - h - 70 : Math.min(innerHeight - h - 12, r.bottom + 18);
   card.style.left = x + "px";
   card.style.top = y + "px";
 }

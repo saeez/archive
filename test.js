@@ -139,9 +139,11 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     const me = cookieOf(r);
 
     /* the librarian's books, notes and private things */
-    const book = { id: "aaaaaaaa-1", kind: "book", title: " Dune ", author: "Frank Herbert", genre: "Sci-fi, Classics", pages: 412,
-                   rating: 5, notes: "My notes <script>alert(1)</script> <?php echo 'x'; ?>", remarks: "Worth it.", link: "https://drive.google.com/file/d/abc/view", year: 1965, isbn: "978-0441172719",
-                   color: "#7a3b2a", private: false, reading: true, extra: "dropped", binding: "Paperback" };
+    const book = {
+      id: "aaaaaaaa-1", kind: "book", title: " Dune ", author: "Frank Herbert", genre: "Sci-fi, Classics", pages: 412,
+      rating: 5, notes: "My notes <script>alert(1)</script> <?php echo 'x'; ?>", remarks: "Worth it.", link: "https://drive.google.com/file/d/abc/view", year: 1965, isbn: "978-0441172719",
+      color: "#7a3b2a", private: false, reading: true, extra: "dropped", binding: "Paperback"
+    };
     r = await post({ op: "put", item: { ...book, coverData: JPEG } }, { cookie: me });
     assert.strictEqual(r.status, 200);
     let lib = (await r.json()).items;
