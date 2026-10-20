@@ -773,6 +773,7 @@ body.ready .reading {
 /* a course: a card that opens its window */
 .course-card {
   container-type: inline-size;
+  text-decoration: none;
   display: grid;
   align-content: start;
   gap: 6px;
@@ -830,6 +831,7 @@ body.ready .reading {
 }
 
 .hit {
+  text-decoration: none;
   display: grid;
   gap: 2px;
   width: 100%;
@@ -878,8 +880,91 @@ body.ready .classes {
 }
 
 .course-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px 48px;
   padding: 30px 110px 22px clamp(20px, 4vw, 48px);
   border-bottom: 1px solid var(--line);
+}
+
+.course-head {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+/* a course page: the course stands centred, as a window does */
+.page-main {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+}
+
+.nothing {
+  text-align: center;
+}
+
+.nothing a {
+  color: var(--ink);
+}
+
+/* a course's resources, beside its name */
+.resources {
+  flex: 0 1 300px;
+}
+
+.resources h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 8px;
+}
+
+.resource-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.resource {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  color: var(--ink);
+  text-decoration: none;
+  font: 500 1.05rem/1.3 var(--serif);
+  transition: color .6s var(--slow);
+}
+
+.resource:hover {
+  color: var(--accent);
+}
+
+.resource .icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+
+.icon-btn.small {
+  width: 30px;
+  height: 30px;
+}
+
+.icon-btn.small .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* the links page: where each link goes, at the end of its row */
+.link-host {
+  margin-left: auto;
+  padding-left: 16px;
+  white-space: nowrap;
 }
 
 .course-top p {
@@ -1172,7 +1257,8 @@ body.ready .classes {
 #detail::backdrop,
 #editor::backdrop,
 #signin::backdrop,
-#class-editor::backdrop {
+#class-editor::backdrop,
+#link-editor::backdrop {
   background: oklch(0.95 0.015 78 / .55);
   backdrop-filter: blur(14px) saturate(.85);
   animation: fade 1.1s var(--slow);
@@ -1435,7 +1521,8 @@ body.ready .classes {
 
 #editor,
 #signin,
-#class-editor {
+#class-editor,
+#link-editor {
   padding: 0;
   border: 0;
   background: none;

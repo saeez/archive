@@ -9,8 +9,8 @@ const { spawn, spawnSync } = require("child_process");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 const cut = src.indexOf("/* ---- DOM ---- */");
 assert.ok(cut > 0, "DOM marker moved — update test.js");
-const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass";
-const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass } =
+const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass, place";
+const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass, place } =
   new Function(src.slice(0, cut) + `\nreturn { ${names} };`)();
 
 /* spines */
@@ -55,6 +55,9 @@ assert.deepStrictEqual(shape(placeClass({ batches: [{ name: "B1", classes: [{ ti
 assert.deepStrictEqual(shape(ct), ["Batch 3:ab", "Batch 5:c"], "the course itself is left as it was");
 const waiting = { batches: [{ name: "Batch 2", classes: [] }, ...ct.batches] };
 assert.deepStrictEqual(shape(placeClass(waiting, 2, -1, { title: "d" }, "Batch 5")), ["Batch 2:", "Batch 3:ab", "Batch 5:cd"], "a batch still waiting for its classes stays");
+const lg = gs => gs.map(g => g.name + ":" + g.links.map(x => x.title).join(""));
+assert.deepStrictEqual(lg(place([], "links", 0, -1, { title: "a" }, "Libraries")), ["Libraries:a"], "the first link makes its group");
+assert.deepStrictEqual(lg(place([{ name: "", links: [{ title: "a" }] }], "links", 0, 0, null, "")), [":"], "a course's last resource can go");
 
 /* genres: two at once are two genres, never a new combined one */
 assert.deepStrictEqual(genresOf({ genre: "Philosophy & religion" }), ["Philosophy", "Religion"]);
@@ -230,6 +233,26 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     assert.strictEqual((await post({ op: "classes", courses: [{ name: "X", batches: "nope" }] }, { cookie: me })).status, 400);
     assert.strictEqual((await post({ op: "classes", courses: "nope" }, { cookie: me })).status, 400);
     assert.strictEqual((await (await get("?classes", me)).json()).courses[0].batches[0].classes[0].title, "Gaza", "a refused save changes nothing");
+    r = await post({ op: "classes", courses: [{ ...course(), resources: [{ title: " Drive ", url: "https://drive.google.com/x", extra: 1 }] }] }, { cookie: me });
+    assert.deepStrictEqual((await r.json()).courses[0].resources, [{ title: "Drive", url: "https://drive.google.com/x" }], "a course keeps its resources, trimmed");
+    for (const bad of [{ title: "x", url: "javascript:alert(1)" }, { title: "", url: "https://a.b" }, "nope"]) {
+      assert.strictEqual((await post({ op: "classes", courses: [{ ...course(), resources: [bad] }] }, { cookie: me })).status, 400, "refused resource: " + JSON.stringify(bad));
+    }
+
+    /* the links page is yours alone too */
+    assert.deepStrictEqual((await (await get("?links", me)).json()).groups, [], "no links file yet: none");
+    const groups = [{ name: " Libraries ", links: [{ title: " CT-B3 ", url: "https://drive.google.com/secretfolder", extra: 1 }] }];
+    assert.strictEqual((await post({ op: "links", groups })).status, 401, "visitors can't change the links");
+    r = await post({ op: "links", groups }, { cookie: me });
+    assert.deepStrictEqual((await r.json()).groups, [{ name: "Libraries", links: [{ title: "CT-B3", url: "https://drive.google.com/secretfolder" }] }], "trimmed; unknown fields dropped");
+    r = await get("?links");
+    assert.ok(r.status === 404 && (await r.text()) === "", "to visitors the links do not exist");
+    r = await fetch(site + "/data/links.php");
+    assert.ok(r.status === 404 && !(await r.text()).includes("secretfolder"), "the links file itself shows nothing");
+    for (const bad of [[{ name: "G", links: [{ title: "x", url: "javascript:alert(1)" }] }], [{ name: ["G"], links: [] }], [{ name: "G" }], "nope"]) {
+      assert.strictEqual((await post({ op: "links", groups: bad }, { cookie: me })).status, 400, "refused: " + JSON.stringify(bad));
+    }
+    assert.strictEqual((await (await get("?links", me)).json()).groups[0].links[0].title, "CT-B3", "a refused save changes nothing");
 
     /* data files can't be read from the web, even if the server rules were missing */
     const stored = file("data/library.php");

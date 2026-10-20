@@ -17,7 +17,7 @@ DirectoryIndex index.html
 <FilesMatch ".">
   Require all denied
 </FilesMatch>
-<FilesMatch "^(index\.html|styles\.css|app\.js|robots\.txt|favicon\.ico|icon-(32|192)\.png|apple-touch-icon\.png|[a-z-]+\.woff2)$">
+<FilesMatch "^((index|course|links)\.html|styles\.css|(app|home|course|links)\.js|robots\.txt|favicon\.ico|icon-(32|192)\.png|apple-touch-icon\.png|[a-z-]+\.woff2)$">
   Require all granted
 </FilesMatch>
 

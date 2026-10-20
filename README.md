@@ -32,18 +32,24 @@ step, no npm, no database.
 - **Currently reading**: books ticked as being read stand face out below the
   shelf, covers showing, until they are unticked.
 - **Private items**: any book or scroll can be marked private.
-- **Courses** (owner only): each course is a card that opens as a window,
-  with a pill per batch when it has several. Click a class and it plays right
-  there (the list slides aside); a notes link sits beside its class. Search
-  finds class titles too. Add or change classes with the pen in the course window.
+- **Courses** (owner only): each course is a card that opens its own page in
+  a new tab, with a pill per batch when it has several. Click a class and it
+  plays right there (the list slides aside); a notes link sits beside its
+  class, and the course's resources beside its name. Search finds class titles
+  too. Add or change classes and resources with the pens on the course page.
+- **Links** (owner only): a page of links (Drive folders and the like) in named
+  groups, opened from the link icon in the top bar.
 
 ## How it's built
 
 | File | Role |
 |---|---|
-| `index.html` | The single page. |
+| `index.html` | The home page: the shelf, and the course cards. |
+| `course.html`, `links.html` | A course on its own page; the links page. |
 | `styles.css` | Warm-paper design (oklch colours), 3D book faces, all motion. |
-| `app.js` | Everything in the browser: the shelf, 3D flight, search, editor, cover lookup. Pure logic sits above the `/* ---- DOM ---- */` marker so `test.js` can run it. |
+| `app.js` | What every page shares: pure logic above the `/* ---- DOM ---- */` marker (so `test.js` can run it), small helpers, saving, the link editor. |
+| `home.js` | The home page: the shelf, 3D flight, search, editor, cover lookup, course cards. |
+| `course.js`, `links.js` | The course page (batches, player, class and resource editors) and the links page. |
 | `api/library.php` | The only server code: serves the library, checks the password, saves changes. |
 | `api/setup.php` | Command-line tool that sets the owner's password. |
 | `fonts/` | Cormorant Garamond, Karla and Space Mono, self-hosted (SIL Open Font License, texts included). |
@@ -52,7 +58,7 @@ step, no npm, no database.
 
 ## Security
 
-- **Visitors never receive notes, private items or class recordings.** They are removed on the
+- **Visitors never receive notes, private items, courses or links.** They are removed on the
   server before anything is sent; nothing is merely hidden on screen.
 - **Password**: only a bcrypt hash is stored (`api/config.php`, never in this
   repository). After 5 wrong attempts from one address, or 30 in total, sign-in
@@ -74,8 +80,8 @@ step, no npm, no database.
 
 ## Not in this repository
 
-- **`data/`**: the library itself (books, notes, private items, covers, class
-  recordings). The
+- **`data/`**: the library itself (books, notes, private items, covers, courses,
+  links). The
   server creates it on the first save, so a fresh copy starts with an empty shelf.
 - **`api/config.php`**: the password hash.
 - **Images**: the site icons (`favicon.ico`, `icon-32.png`, `icon-192.png`,
@@ -123,18 +129,23 @@ overwritten. To back up, download `data/` from the server.
 webhosting login from Administration → Login details (the username is the
 domain name). A subdomain has its own folder at the top of the FTP space.
 
-## Adding a class
+## Adding classes, resources and links
 
-Open the course and press the pen. Pick **A new class** (or a class to change),
+On a course page, press the pen in the corner. Pick **A new class** (or a class to change),
 fill in the title and the video link, and optionally a notes link, the module
 and a label such as *Bonus*. Classes in a row with the same module are grouped
 together. A YouTube link plays inside the page; any other link opens in a new tab.
 The batch field says which batch the class belongs to; a new name (say
 *Batch 2*) starts a new batch.
 
-The site saves classes in `data/classes.php` on the server (with the previous
-version in `classes.bak.php`). Upload that file only once: after that the
-site keeps it, and uploading your local copy again would undo changes made online.
+The pen beside **Resources** adds or changes a link for the whole course. On
+the links page (the link icon in the home page's top bar), the pen adds or
+changes a link; a new group name starts a new group.
+
+The site saves courses in `data/classes.php` and links in `data/links.php` on
+the server (each with its previous version as `.bak.php`). Upload each only
+once: after that the site keeps them, and uploading your local copy again would
+undo changes made online.
 
 ## Tests
 

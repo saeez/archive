@@ -3,8 +3,9 @@
 
    Anyone:     GET                  → the public shelf (remarks and links too): no notes, no private items
                GET ?cover=<id>      → a cover image, unless its book is private
-   Librarian:  GET ?classes         → {courses}: class recordings, from data/classes.php
-               POST {op:"classes", courses}  → saves them all (classes.bak.php keeps the last)
+   Librarian:  GET ?classes         → {courses}: courses, batches, class recordings, resources (data/classes.php)
+               GET ?links           → {groups}: the links page (data/links.php)
+               POST {op:"classes", courses} | {op:"links", groups}  → saves one of them whole (.bak.php keeps the last)
                POST {op:"login", password}   → a signed, HttpOnly cookie for 7 days
                POST {op:"logout"}
                POST {op:"put", item} | {op:"delete", id}
@@ -23,6 +24,9 @@ const DATA      = __DIR__ . '/../data/library.php';
 const COVERS    = __DIR__ . '/../data/covers';
 const THROTTLE  = __DIR__ . '/../data/throttle.php';
 const CLASSES   = __DIR__ . '/../data/classes.php';
+const LINKS     = __DIR__ . '/../data/links.php';
+/* What only the librarian sees, by name: its file, and the key it travels under. */
+const OWN       = ['classes' => [CLASSES, 'courses'], 'links' => [LINKS, 'groups']];
 /* The first line of every data file. Should a misconfigured server ever serve
    one, PHP runs this line and nothing of the file is shown. */
 const GUARD     = "<?php http_response_code(404); exit; ?>\n";
@@ -110,12 +114,13 @@ $damaged = $owner ? 'data/library.php is damaged. data/library.bak.php holds the
 /* ---- reading ---- */
 
 if ($method === 'GET') {
-  /* class recordings are yours alone: to anyone else they do not exist */
-  if (isset($_GET['classes'])) {
+  /* courses and links are yours alone: to anyone else they do not exist */
+  foreach (OWN as $what => [$file, $key]) {
+    if (!isset($_GET[$what])) continue;
     if (!$owner) reply(404);
-    $courses = read_data(CLASSES);
-    if ($courses === false) reply(500, ['error' => 'data/classes.php is damaged.']);
-    reply(200, ['courses' => $courses]);
+    $value = read_data($file);
+    if ($value === false) reply(500, ['error' => 'data/' . basename($file) . ' is damaged.']);
+    reply(200, [$key => $value]);
   }
   $items = read_data(DATA);
   if ($items === false) reply(500, ['error' => $damaged]);
@@ -189,8 +194,30 @@ if ($op === 'login') {
 
 if (!$owner) reply(401, ['error' => 'Sign in to make changes.']);
 
-/* Class recordings are saved whole: the page sends every course back, and
-   only these fields survive. Links must be web addresses (never javascript:). */
+/* A titled web link (never javascript:), or a string saying what is wrong. */
+function clean_link($x): array|string {
+  $title = is_string($x['title'] ?? null) && mb_strlen($x['title']) <= 200 ? trim($x['title']) : '';
+  $url = is_string($x['url'] ?? null) && mb_strlen($x['url']) <= 2000 ? trim($x['url']) : '';
+  return $title !== '' && preg_match('~^https?://\S+$~i', $url) ? ['title' => $title, 'url' => $url]
+    : 'Every link needs a title and a web address starting with https://.';
+}
+
+/* The links page: named groups of links. */
+function clean_links($in) {
+  if (!is_array($in) || !array_is_list($in) || count($in) > 100) return 'Bad links.';
+  $out = [];
+  foreach ($in as $g) {
+    $name = is_string($g['name'] ?? null) && mb_strlen($g['name']) <= 120 ? trim($g['name']) : null;
+    $links = $g['links'] ?? null;
+    if ($name === null || !is_array($links) || !array_is_list($links) || count($links) > 1000) return 'Every group needs a name and a list of links.';
+    foreach ($links as $i => $x) if (is_string($links[$i] = clean_link($x))) return $links[$i];
+    $out[] = ['name' => $name, 'links' => $links];
+  }
+  return $out;
+}
+
+/* Courses are saved whole: the page sends every course back, and only these
+   fields survive. Links must be web addresses (never javascript:). */
 function clean_courses($in) {
   if (!is_array($in) || !array_is_list($in) || count($in) > 100) return 'Bad courses.';
   $text = fn($v, int $max) => is_string($v) && mb_strlen($v) <= $max ? trim($v) : null;
@@ -200,7 +227,9 @@ function clean_courses($in) {
   foreach ($in as $c) {
     $name = $text($c['name'] ?? null, 120);
     $teacher = $text($c['teacher'] ?? '', 120);
-    if (!$name || $teacher === null || !$list($c['batches'] ?? null, 50)) return 'Bad course.';
+    if (!$name || $teacher === null || !$list($c['batches'] ?? null, 50) || !$list($c['resources'] ?? [], 200)) return 'Bad course.';
+    $resources = [];
+    foreach ($c['resources'] ?? [] as $r) if (is_string($resources[] = clean_link($r))) return end($resources);
     $batches = [];
     foreach ($c['batches'] as $b) {
       $batch = $text($b['name'] ?? null, 60);
@@ -220,18 +249,19 @@ function clean_courses($in) {
       }
       $batches[] = ['name' => $batch, 'classes' => $classes];
     }
-    $out[] = ['name' => $name] + ($teacher === '' ? [] : ['teacher' => $teacher]) + ['batches' => $batches];
+    $out[] = ['name' => $name] + ($teacher === '' ? [] : ['teacher' => $teacher]) + ($resources ? ['resources' => $resources] : []) + ['batches' => $batches];
   }
   return $out;
 }
 
-if ($op === 'classes') {
-  $courses = clean_courses($req['courses'] ?? null);
-  if (is_string($courses)) reply(400, ['error' => $courses]);
-  if (read_data(CLASSES) === false) reply(500, ['error' => 'data/classes.php is damaged. Nothing was changed.']);
-  if (is_file(CLASSES)) copy(CLASSES, "$dir/classes.bak.php");
-  if (!write_data(CLASSES, $courses)) reply(500, ['error' => 'Could not save. Nothing was changed.']);
-  reply(200, ['courses' => $courses]);
+if (isset(OWN[$op])) {
+  [$file, $key] = OWN[$op];
+  $value = $op === 'classes' ? clean_courses($req[$key] ?? null) : clean_links($req[$key] ?? null);
+  if (is_string($value)) reply(400, ['error' => $value]);
+  if (read_data($file) === false) reply(500, ['error' => 'data/' . basename($file) . ' is damaged. Nothing was changed.']);
+  if (is_file($file)) copy($file, substr($file, 0, -4) . '.bak.php');
+  if (!write_data($file, $value)) reply(500, ['error' => 'Could not save. Nothing was changed.']);
+  reply(200, [$key => $value]);
 }
 
 /* Returns the cleaned item, or a string saying what is wrong with it. Only

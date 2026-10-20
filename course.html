@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Course · Saeed's archive</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css?v=9">
+<script src="app.js?v=9" defer></script>
+<script src="course.js?v=9" defer></script>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 13h8M8 17h5"/></symbol>
+</svg>
+<div class="glow" aria-hidden="true"><span></span><span></span><span></span></div>
+
+<main class="page-main">
+  <article id="course-window" class="course-window" hidden>
+    <header class="course-top">
+      <div class="course-head">
+        <p id="course-label" class="label"></p>
+        <h2 id="course-name" dir="auto"></h2>
+        <p id="course-teacher" class="course-teacher" hidden></p>
+        <nav id="batch-tabs" class="batch-tabs" aria-label="Batches"></nav>
+      </div>
+      <aside class="resources" aria-labelledby="resources-title">
+        <h3 class="label"><span id="resources-title">Resources</span><button id="resource-pen" class="icon-btn small" type="button" title="Add or change a resource" aria-label="Add or change a resource"><svg class="icon" aria-hidden="true"><use href="#i-pen"/></svg></button></h3>
+        <ul id="resource-list" class="resource-list"></ul>
+      </aside>
+    </header>
+    <div class="course-body">
+      <div id="player" class="player"></div>
+      <div id="class-list" class="class-list"></div>
+    </div>
+  </article>
+  <p id="nothing" class="label nothing" hidden>Nothing here. <a href="./">Back to the archive</a></p>
+</main>
+
+<div id="tools" class="detail-tools" hidden><button id="class-pen" class="icon-btn" type="button" title="Add or change a class" aria-label="Add or change a class"><svg class="icon" aria-hidden="true"><use href="#i-pen"/></svg></button></div>
+
+<dialog id="class-editor">
+  <form id="class-form" class="form-card">
+    <p id="class-course" class="label" dir="auto"></p>
+    <h2 id="class-form-title">Add a class</h2>
+    <label class="field"><span class="label">Class</span><select name="which"></select></label>
+    <label class="field"><span class="label">Title</span><input name="title" required maxlength="300" autocomplete="off"></label>
+    <label class="field"><span class="label">Video link <small>(YouTube plays here; other links open in a new tab)</small></span><input name="url" type="url" required maxlength="2000" pattern="https?://.+" placeholder="https://youtu.be/…" autocomplete="off"></label>
+    <label class="field"><span class="label">Notes link <small>(optional)</small></span><input name="notes" type="url" maxlength="2000" pattern="https?://.+" placeholder="https://…" autocomplete="off"></label>
+    <div class="row three">
+      <label class="field"><span class="label">Batch <small>(new name, new batch)</small></span><input name="batch" list="class-batches" required maxlength="60" autocomplete="off"></label>
+      <label class="field"><span class="label">Module</span><input name="module" list="class-modules" maxlength="120" autocomplete="off"></label>
+      <label class="field"><span class="label">Label <small>(e.g. Bonus)</small></span><input name="tag" maxlength="60" autocomplete="off"></label>
+    </div>
+    <p id="class-error" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="class-remove" class="icon-btn trash" type="button" title="Remove this class" aria-label="Remove this class" hidden><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>
+      <button id="class-cancel" class="ghost-btn" type="button">Cancel</button>
+      <button id="class-save" class="solid-btn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="link-editor">
+  <form class="form-card">
+    <p id="link-where" class="label" dir="auto"></p>
+    <h2 id="link-form-title">Add a link</h2>
+    <label class="field"><span class="label">Link</span><select name="which"></select></label>
+    <label class="field"><span class="label">Title</span><input name="title" required maxlength="200" autocomplete="off"></label>
+    <label class="field"><span class="label">Address</span><input name="url" type="url" required maxlength="2000" pattern="https?://.+" placeholder="https://…" autocomplete="off"></label>
+    <label id="link-group-field" class="field"><span class="label">Group <small>(new name, new group)</small></span><input name="group" list="link-groups" maxlength="120" autocomplete="off"></label>
+    <p id="link-error" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="link-remove" class="icon-btn trash" type="button" title="Remove this link" aria-label="Remove this link" hidden><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>
+      <button id="link-cancel" class="ghost-btn" type="button">Cancel</button>
+      <button id="link-save" class="solid-btn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="link-groups"></datalist>
+<datalist id="class-modules"></datalist>
+<datalist id="class-batches"></datalist>
+
+</body>
+</html>

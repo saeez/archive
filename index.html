@@ -10,8 +10,9 @@
 <link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
 <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="styles.css?v=8">
-<script src="app.js?v=8" defer></script>
+<link rel="stylesheet" href="styles.css?v=10">
+<script src="app.js?v=10" defer></script>
+<script src="home.js?v=10" defer></script>
 </head>
 <body>
 
@@ -20,6 +21,7 @@
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 13h8M8 17h5"/></symbol>
 </svg>
 <div class="glow" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -29,6 +31,7 @@
   <div class="tools">
     <input id="q" type="search" placeholder="What are you looking for?" aria-label="Search the archive">
     <button id="add" class="icon-btn owner-only" type="button" title="Add a book or scroll" aria-label="Add a book or scroll"><svg class="icon" aria-hidden="true"><use href="#i-pen"/></svg></button>
+    <a id="links" class="icon-btn owner-only" href="links.html" target="_blank" rel="noopener" title="Links" aria-label="Links"><svg class="icon" aria-hidden="true"><use href="#i-link"/></svg></a>
     <button id="signout" class="icon-btn owner-only" type="button" title="Sign out" aria-label="Sign out"><svg class="icon" aria-hidden="true"><use href="#i-out"/></svg></button>
   </div>
 </header>
@@ -168,31 +171,7 @@
   </form>
 </dialog>
 
-<dialog id="class-editor">
-  <form id="class-form" class="form-card">
-    <p id="class-course" class="label" dir="auto"></p>
-    <h2 id="class-form-title">Add a class</h2>
-    <label class="field"><span class="label">Class</span><select name="which"></select></label>
-    <label class="field"><span class="label">Title</span><input name="title" required maxlength="300" autocomplete="off"></label>
-    <label class="field"><span class="label">Video link <small>(YouTube plays here; other links open in a new tab)</small></span><input name="url" type="url" required maxlength="2000" pattern="https?://.+" placeholder="https://youtu.be/…" autocomplete="off"></label>
-    <label class="field"><span class="label">Notes link <small>(optional)</small></span><input name="notes" type="url" maxlength="2000" pattern="https?://.+" placeholder="https://…" autocomplete="off"></label>
-    <div class="row three">
-      <label class="field"><span class="label">Batch <small>(new name, new batch)</small></span><input name="batch" list="class-batches" required maxlength="60" autocomplete="off"></label>
-      <label class="field"><span class="label">Module</span><input name="module" list="class-modules" maxlength="120" autocomplete="off"></label>
-      <label class="field"><span class="label">Label <small>(e.g. Bonus)</small></span><input name="tag" maxlength="60" autocomplete="off"></label>
-    </div>
-    <p id="class-error" class="error" role="alert"></p>
-    <div class="actions">
-      <button id="class-remove" class="icon-btn trash" type="button" title="Remove this class" aria-label="Remove this class" hidden><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>
-      <button id="class-cancel" class="ghost-btn" type="button">Cancel</button>
-      <button id="class-save" class="solid-btn">Save</button>
-    </div>
-  </form>
-</dialog>
-
 <datalist id="genres"></datalist>
-<datalist id="class-modules"></datalist>
-<datalist id="class-batches"></datalist>
 
 </body>
 </html>
