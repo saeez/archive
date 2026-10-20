@@ -35,8 +35,9 @@ const modulesOf = classes => classes.reduce((out, c, i) => {
    links) after `x` is saved into the group named `to` (made if new; groups stay
    in name and number order), or removed when x is null. `at` is its place in
    groups[from][key] if it is there already (-1 if new); something that stays in
-   its group keeps its place. A group this empties goes, unless it is the last;
-   one that was already empty (waiting to be filled) stays. */
+   its group keeps its place. A group this leaves with nothing at all (no
+   classes, no resources) goes, unless it is the last; one that was already
+   empty (waiting to be filled) stays. */
 function place(groups, key, from, at, x, to) {
   const out = structuredClone(groups), src = out[from], stays = x && at >= 0 && to === src.name;
   if (at >= 0) src[key].splice(at, 1, ...(stays ? [x] : []));
@@ -48,7 +49,7 @@ function place(groups, key, from, at, x, to) {
     }
     dst[key].push(x);
   }
-  if (at >= 0 && !src[key].length && out.length > 1) out.splice(out.indexOf(src), 1);
+  if (at >= 0 && Object.values(src).every(v => !Array.isArray(v) || !v.length) && out.length > 1) out.splice(out.indexOf(src), 1);
   return out;
 }
 const placeClass = (course, from, at, x, to) => ({ ...course, batches: place(course.batches, "classes", from, at, x, to) });
@@ -281,6 +282,16 @@ function outLink(url, cls) {
   return a;
 }
 
+/* A link as a tile in its group's colour: a folder or link icon, the title,
+   the site it opens, and an arrow. */
+function linkTile(x) {
+  const li = el("li"), a = outLink(x.url, "link-card");
+  a.append(icon(/\/folders\/|1drv\.ms\/f\//.test(x.url) ? "i-folder" : "i-link"), auto(el("span", "link-title", x.title)),
+    el("span", "label link-site", linkHost(x.url)), icon("i-arrow"));
+  li.append(a);
+  return li;
+}
+
 /* ---- saving ---- */
 
 let signedOut = () => {};          // what a page does when a save is turned away; it may return its own message
@@ -301,7 +312,7 @@ async function send(body) {
 const fetchOwn = what => fetch("api/library.php?" + what, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
 
 /* ---- the link editor ----
-   One form for links kept in groups (a course's resources are a single group
+   One form for links kept in groups (a batch's resources are a single group
    without a name): pick a link to change or a new one, then its title, its
    address and, where groups have names, its group. */
 

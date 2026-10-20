@@ -3,7 +3,7 @@
 
    Anyone:     GET                  → the public shelf (remarks and links too): no notes, no private items
                GET ?cover=<id>      → a cover image, unless its book is private
-   Librarian:  GET ?classes         → {courses}: courses, batches, class recordings, resources (data/classes.php)
+   Librarian:  GET ?classes         → {courses}: courses, their batches, each batch's classes and resources (data/classes.php)
                GET ?links           → {groups}: the links page (data/links.php)
                POST {op:"classes", courses} | {op:"links", groups}  → saves one of them whole (.bak.php keeps the last)
                POST {op:"login", password}   → a signed, HttpOnly cookie for 7 days
@@ -227,13 +227,13 @@ function clean_courses($in) {
   foreach ($in as $c) {
     $name = $text($c['name'] ?? null, 120);
     $teacher = $text($c['teacher'] ?? '', 120);
-    if (!$name || $teacher === null || !$list($c['batches'] ?? null, 50) || !$list($c['resources'] ?? [], 200)) return 'Bad course.';
-    $resources = [];
-    foreach ($c['resources'] ?? [] as $r) if (is_string($resources[] = clean_link($r))) return end($resources);
+    if (!$name || $teacher === null || !$list($c['batches'] ?? null, 50)) return 'Bad course.';
     $batches = [];
     foreach ($c['batches'] as $b) {
       $batch = $text($b['name'] ?? null, 60);
-      if (!$batch || !$list($b['classes'] ?? null, 2000)) return 'Every batch needs a name.';
+      if (!$batch || !$list($b['classes'] ?? null, 2000) || !$list($b['resources'] ?? [], 200)) return 'Every batch needs a name.';
+      $resources = [];
+      foreach ($b['resources'] ?? [] as $r) if (is_string($resources[] = clean_link($r))) return end($resources);
       $classes = [];
       foreach ($b['classes'] as $x) {
         $f = [];
@@ -247,9 +247,9 @@ function clean_courses($in) {
         if (isset($f['date']) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $f['date'])) return 'Bad date.';
         $classes[] = $f;
       }
-      $batches[] = ['name' => $batch, 'classes' => $classes];
+      $batches[] = ['name' => $batch] + ($resources ? ['resources' => $resources] : []) + ['classes' => $classes];
     }
-    $out[] = ['name' => $name] + ($teacher === '' ? [] : ['teacher' => $teacher]) + ($resources ? ['resources' => $resources] : []) + ['batches' => $batches];
+    $out[] = ['name' => $name] + ($teacher === '' ? [] : ['teacher' => $teacher]) + ['batches' => $batches];
   }
   return $out;
 }

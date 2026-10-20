@@ -570,15 +570,16 @@ async function loadClasses() {
   const got = owner ? (await fetchOwn("classes"))?.courses : [];
   courses = owner && Array.isArray(got) ? got.filter(c => c && Array.isArray(c.batches) && c.batches.length) : [];
   showClasses();
+  if (location.hash === "#courses" && courses.length) $("classes").scrollIntoView({ block: "start" });   // back from a course page
 }
 
 const classesOf = c => c.batches.flatMap(b => b.classes);
 const classHits = ws => !ws.length ? [] : courses.flatMap((c, ci) =>
   c.batches.flatMap((b, bi) => b.classes.flatMap((x, i) => classMatches(x, ws) ? [{ ci, bi, i, x }] : [])));
-const toCourse = (cls, q) => Object.assign(el("a", cls), { href: "course.html?" + q, target: "_blank", rel: "noopener" });
+const toCourse = (cls, q) => Object.assign(el("a", cls), { href: "course.html?" + q });
 
-/* The courses as cards, each opening its own page in a new tab; while
-   searching, the classes that match beneath them. Returns how many match. */
+/* The courses as cards, each opening its own page; while searching, the
+   classes that match beneath them. Returns how many match. */
 function showClasses() {
   $("classes").hidden = !courses.length;
   $("courses").replaceChildren(...courses.map((c, ci) => {
@@ -600,6 +601,39 @@ function showClasses() {
   }));
   return found.length;
 }
+
+/* ---- links: a pop-up of links in named groups, each opening in a new tab ---- */
+
+const linksDialog = $("links-dialog");
+let linkGroups = [];
+
+/* Each group under its name, its links as tiles in the group's colour. */
+function showLinks() {
+  const n = linkGroups.reduce((k, g) => k + g.links.length, 0);
+  $("link-count").textContent = count(n, "link") + (linkGroups.length > 1 ? " in " + count(linkGroups.length, "group") : "");
+  $("link-list").replaceChildren(...(!n ? [el("p", "label class-empty", "No links yet. Press the pen to add the first.")] :
+    linkGroups.filter(g => g.links.length).map(g => {
+      const sec = el("section", "link-group"), ul = el("ul", "link-grid");
+      ul.append(...g.links.map(linkTile));
+      if (g.name) sec.append(auto(el("h3", "label", g.name)));
+      sec.append(ul);
+      return sec;
+    })));
+}
+
+$("links").onclick = async () => {
+  const d = await fetchOwn("links");
+  linkGroups = Array.isArray(d?.groups) ? d.groups : [];
+  showLinks();
+  linksDialog.showModal();
+  if (!calm.matches) $("links-window").animate([{ opacity: 0, transform: "translateY(30px)" }, { opacity: 1, transform: "none" }], { duration: 900, easing: "cubic-bezier(.22,.61,.36,1)" });
+};
+$("link-pen").onclick = () => openLinkEditor("Links", linkGroups, true, async next => {
+  linkGroups = (await send({ op: "links", groups: next })).groups;
+  showLinks();
+});
+$("links-close").onclick = () => linksDialog.close();
+linksDialog.addEventListener("click", e => { if (e.target === linksDialog) linksDialog.close(); });
 
 /* ---- the editor ---- */
 

@@ -32,24 +32,25 @@ step, no npm, no database.
 - **Currently reading**: books ticked as being read stand face out below the
   shelf, covers showing, until they are unticked.
 - **Private items**: any book or scroll can be marked private.
-- **Courses** (owner only): each course is a card that opens its own page in
-  a new tab, with a pill per batch when it has several. Click a class and it
+- **Courses** (owner only): each course is a card that opens its own page
+  (the back arrow returns to the courses), with a pill per batch when it has several. Click a class and it
   plays right there (the list slides aside); a notes link sits beside its
-  class, and the course's resources beside its name. Search finds class titles
-  too. Add or change classes and resources with the pens on the course page.
-- **Links** (owner only): a page of links (Drive folders and the like) in named
-  groups, opened from the link icon in the top bar.
+  class. Each batch has its own resources, as tiles above its classes. Search
+  finds class titles too. Add or change classes and resources with the two
+  buttons in the corner of the course page.
+- **Links** (owner only): links (Drive folders and the like) as coloured tiles in named
+  groups, in a pop-up opened from the link button beside the Courses heading.
 
 ## How it's built
 
 | File | Role |
 |---|---|
-| `index.html` | The home page: the shelf, and the course cards. |
-| `course.html`, `links.html` | A course on its own page; the links page. |
+| `index.html` | The home page: the shelf, the course cards, the links pop-up. |
+| `course.html` | A course on its own page. |
 | `styles.css` | Warm-paper design (oklch colours), 3D book faces, all motion. |
 | `app.js` | What every page shares: pure logic above the `/* ---- DOM ---- */` marker (so `test.js` can run it), small helpers, saving, the link editor. |
-| `home.js` | The home page: the shelf, 3D flight, search, editor, cover lookup, course cards. |
-| `course.js`, `links.js` | The course page (batches, player, class and resource editors) and the links page. |
+| `home.js` | The home page: the shelf, 3D flight, search, editor, cover lookup, course cards, links pop-up. |
+| `course.js` | The course page: batches, their resources, the player, the class editor. |
 | `api/library.php` | The only server code: serves the library, checks the password, saves changes. |
 | `api/setup.php` | Command-line tool that sets the owner's password. |
 | `fonts/` | Cormorant Garamond, Karla and Space Mono, self-hosted (SIL Open Font License, texts included). |
@@ -138,9 +139,9 @@ together. A YouTube link plays inside the page; any other link opens in a new ta
 The batch field says which batch the class belongs to; a new name (say
 *Batch 2*) starts a new batch.
 
-The pen beside **Resources** adds or changes a link for the whole course. On
-the links page (the link icon in the home page's top bar), the pen adds or
-changes a link; a new group name starts a new group.
+The link button beside the pen adds or changes a resource for the batch on
+show. In the links pop-up (the link button beside the Courses heading), the
+pen adds or changes a link; a new group name starts a new group.
 
 The site saves courses in `data/classes.php` and links in `data/links.php` on
 the server (each with its previous version as `.bak.php`). Upload each only

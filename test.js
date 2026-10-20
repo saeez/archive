@@ -57,7 +57,9 @@ const waiting = { batches: [{ name: "Batch 2", classes: [] }, ...ct.batches] };
 assert.deepStrictEqual(shape(placeClass(waiting, 2, -1, { title: "d" }, "Batch 5")), ["Batch 2:", "Batch 3:ab", "Batch 5:cd"], "a batch still waiting for its classes stays");
 const lg = gs => gs.map(g => g.name + ":" + g.links.map(x => x.title).join(""));
 assert.deepStrictEqual(lg(place([], "links", 0, -1, { title: "a" }, "Libraries")), ["Libraries:a"], "the first link makes its group");
-assert.deepStrictEqual(lg(place([{ name: "", links: [{ title: "a" }] }], "links", 0, 0, null, "")), [":"], "a course's last resource can go");
+assert.deepStrictEqual(lg(place([{ name: "", links: [{ title: "a" }] }], "links", 0, 0, null, "")), [":"], "a batch's last resource can go");
+const kept = { batches: [{ name: "Batch 3", resources: [{ title: "lib" }], classes: [{ title: "a" }] }, { name: "Batch 5", classes: [{ title: "b" }] }] };
+assert.deepStrictEqual(placeClass(kept, 0, 0, null, "Batch 3").batches.map(b => b.name), ["Batch 3", "Batch 5"], "a batch with resources stays when its last class goes");
 
 /* genres: two at once are two genres, never a new combined one */
 assert.deepStrictEqual(genresOf({ genre: "Philosophy & religion" }), ["Philosophy", "Religion"]);
@@ -233,10 +235,12 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     assert.strictEqual((await post({ op: "classes", courses: [{ name: "X", batches: "nope" }] }, { cookie: me })).status, 400);
     assert.strictEqual((await post({ op: "classes", courses: "nope" }, { cookie: me })).status, 400);
     assert.strictEqual((await (await get("?classes", me)).json()).courses[0].batches[0].classes[0].title, "Gaza", "a refused save changes nothing");
-    r = await post({ op: "classes", courses: [{ ...course(), resources: [{ title: " Drive ", url: "https://drive.google.com/x", extra: 1 }] }] }, { cookie: me });
-    assert.deepStrictEqual((await r.json()).courses[0].resources, [{ title: "Drive", url: "https://drive.google.com/x" }], "a course keeps its resources, trimmed");
+    r = await post({ op: "classes", courses: [{ ...course(gaza, { name: "Batch 5", resources: [{ title: " Drive ", url: "https://drive.google.com/x", extra: 1 }] }), resources: [{ title: "old", url: "https://a.b" }] }] }, { cookie: me });
+    const saved = (await r.json()).courses[0];
+    assert.deepStrictEqual(saved.batches[0].resources, [{ title: "Drive", url: "https://drive.google.com/x" }], "a batch keeps its resources, trimmed");
+    assert.ok(!("resources" in saved), "resources belong to batches, not to the whole course");
     for (const bad of [{ title: "x", url: "javascript:alert(1)" }, { title: "", url: "https://a.b" }, "nope"]) {
-      assert.strictEqual((await post({ op: "classes", courses: [{ ...course(), resources: [bad] }] }, { cookie: me })).status, 400, "refused resource: " + JSON.stringify(bad));
+      assert.strictEqual((await post({ op: "classes", courses: [course(gaza, { name: "Batch 5", resources: [bad] })] }, { cookie: me })).status, 400, "refused resource: " + JSON.stringify(bad));
     }
 
     /* the links page is yours alone too */

@@ -1,5 +1,5 @@
-/* Saeed's Archive — a course on a page of its own: its batches, its classes
-   (played right here), its resources, and the forms that change them.
+/* Saeed's Archive — a course on a page of its own: its batches, each with its
+   resources and its classes (played right here), and the forms that change them.
    course.html?c=<course>[&b=<batch>&i=<class>] opens on that class. */
 "use strict";
 
@@ -21,18 +21,9 @@ async function saveCourse(next) {
   courses = (await send({ op: "classes", courses: courses.map((c, j) => j === course ? next : c) })).courses;
 }
 
-function showResources() {
-  const rs = courses[course].resources || [];
-  $("resource-list").replaceChildren(...(rs.length ? rs.map(r => {
-    const li = el("li"), a = outLink(r.url, "resource");
-    a.append(icon("i-file"), auto(el("span", "", r.title)));
-    li.append(a);
-    return li;
-  }) : [el("li", "label", "None yet")]));
-}
-
-/* The batch on show: a pill for each batch (when there are several), then two
-   columns: the class (click it to play it here) and its notes, if any. */
+/* The batch on show: a pill for each batch (when there are several), then its
+   resources, then two columns: the class (click it to play it here) and its
+   notes, if any. */
 function fillClassList() {
   const c = courses[course], b = c.batches[batch];
   $("course-label").textContent = `${b.name} · ${count(b.classes.length, "recording")}`;
@@ -43,7 +34,13 @@ function fillClassList() {
     t.onclick = () => { batch = j; fillClassList(); list.scrollTop = list.parentElement.scrollTop = 0; };
     return t;
   })));
-  const groups = el("ol", "modules");
+  const groups = el("ol", "modules"), rs = b.resources || [];
+  if (rs.length) {
+    const li = el("li", "module resources"), ul = el("ul", "link-grid");
+    ul.append(...rs.map(linkTile));
+    li.append(el("h3", "label module-name", "Resources"), ul);
+    groups.append(li);
+  }
   for (const m of modulesOf(b.classes)) {
     const li = el("li", "module"), ol = el("ol", "lessons");
     for (const x of m.classes) {
@@ -61,7 +58,8 @@ function fillClassList() {
     li.append(ol);
     groups.append(li);
   }
-  list.replaceChildren(b.classes.length ? groups : el("p", "label class-empty", "No classes yet. Press the pen to add the first."));
+  if (!b.classes.length) groups.append(el("li", "label class-empty", "No classes yet. Press the pen to add the first."));
+  list.replaceChildren(groups);
 }
 
 /* The video plays on the left; the classes slide over to the right. */
@@ -172,13 +170,22 @@ $("class-cancel").onclick = () => { if (discard()) classEditor.close(); };
 classEditor.addEventListener("cancel", e => { if (!discard()) e.preventDefault(); });
 
 $("class-pen").onclick = () => openClassEditor(playing?.b === batch ? playing.i : -1);
-$("resource-pen").onclick = () => openLinkEditor(courses[course].name, [{ name: "", links: courses[course].resources || [] }], false, async groups => {
-  await saveCourse({ ...courses[course], resources: groups[0]?.links || [] });
-  showResources();
-});
+$("resource-pen").onclick = () => {
+  const c = courses[course], at = batch;
+  openLinkEditor(`${c.name} · ${c.batches[at].name}`, [{ name: "", links: c.batches[at].resources || [] }], false, async groups => {
+    const next = structuredClone(courses[course]);
+    next.batches[at].resources = groups[0]?.links || [];
+    await saveCourse(next);
+    fillClassList();
+  });
+};
 
 fetchOwn("classes").then(d => {
   courses = Array.isArray(d?.courses) ? d.courses : [];
+  for (const x of courses) {   // resources kept for a whole course, before batches had their own, go to its newest batch
+    if (x.resources?.length && x.batches?.length) x.batches.at(-1).resources = [...(x.batches.at(-1).resources || []), ...x.resources];
+    delete x.resources;
+  }
   const c = courses[course];
   if (!c || !Array.isArray(c.batches) || !c.batches.length) { $("nothing").hidden = false; return; }
   document.title = `${c.name} · Saeed's archive`;
@@ -187,7 +194,6 @@ fetchOwn("classes").then(d => {
   $("course-teacher").textContent = c.teacher || "";
   $("course-teacher").hidden = !c.teacher;
   win.hidden = $("tools").hidden = false;
-  showResources();
   fillClassList();
   if (!calm.matches) win.animate([{ opacity: 0, transform: "translateY(30px)" }, { opacity: 1, transform: "none" }], { duration: 900, easing: "cubic-bezier(.22,.61,.36,1)" });
   if (ask.has("i")) playClass(+ask.get("i"));
