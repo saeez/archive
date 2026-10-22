@@ -23,7 +23,7 @@ async function saveCourse(next) {
 
 /* The batch on show: a pill for each batch (when there are several), then its
    resources, then two columns: the class (click it to play it here) and its
-   notes, if any. */
+   notes, if any. Newest first: the last module on top, its last class first. */
 function fillClassList() {
   const c = courses[course], b = c.batches[batch];
   $("course-label").textContent = `${b.name} · ${count(b.classes.length, "recording")}`;
@@ -42,10 +42,10 @@ function fillClassList() {
     groups.append(li);
   }
   const mods = modulesOf(b.classes), tints = moduleTints(mods);
-  mods.forEach((m, k) => {
+  [...mods.entries()].reverse().forEach(([k, m]) => {
     const li = el("li", "module"), ol = el("ol", "lessons");
     li.dataset.tint = tints[k];
-    for (const x of m.classes) {
+    for (const x of [...m.classes].reverse()) {
       const row = el("li", "lesson"), id = youtubeId(x.url);
       const t = id ? el("button", "lesson-title") : outLink(x.url, "lesson-title");
       if (id) { t.type = "button"; t.onclick = () => playClass(x.i); }
@@ -101,12 +101,13 @@ function playClass(i) {
   player.animate([{ opacity: 0, transform: "translateX(28px)" }, { opacity: 1, transform: "none" }], { duration: 900, delay: 150, easing: ease, fill: "backwards" });
 }
 
-/* Under the video: what is playing, and its notes. */
+/* Under the video: what is playing, when it was and in which week, and its notes. */
 function showNow() {
-  const c = courses[course], now = win.querySelector(".now"), x = playing && c.batches[playing.b]?.classes[playing.i];
+  const c = courses[course], now = win.querySelector(".now"), b = playing && c.batches[playing.b], x = b?.classes[playing.i];
   if (!now || !x) return;
   const text = el("div");
-  text.append(el("p", "label", [c.batches.length > 1 && c.batches[playing.b].name, x.module].filter(Boolean).join(" · ") || c.name), auto(el("h3", "", x.title)));
+  const when = x.date && [day(x.date), "Week " + weekOf(x.date, b.classes.map(y => y.date))];
+  text.append(el("p", "label", [c.batches.length > 1 && b.name, x.module, ...(when || [])].filter(Boolean).join(" · ") || c.name), auto(el("h3", "", x.title)));
   now.replaceChildren(text);
   if (linkHost(x.notes || "")) now.append(notesLink(x.notes));
 }
@@ -126,7 +127,7 @@ modulePick.onchange = () => { showNewModule(); if (!newModule.hidden) newModule.
 
 function openClassEditor(i = -1) {
   const c = courses[course], b = c.batches[batch];
-  which.replaceChildren(new Option("A new class", -1), ...b.classes.map((x, j) => new Option(`${j + 1}. ${x.title}`, j)));
+  which.replaceChildren(new Option("A new class", -1), ...b.classes.map((x, j) => new Option(`${j + 1}. ${x.title}`, j)).reverse());
   which.value = i;
   $("class-batches").replaceChildren(...c.batches.map(x => new Option(x.name)));
   modulePick.replaceChildren(new Option("No module", ""), ...[...new Set(classesOf(c).map(x => x.module).filter(Boolean))].map(m => new Option(m)), new Option("New module…", ""));
@@ -138,7 +139,8 @@ function openClassEditor(i = -1) {
 function fillClassForm() {
   const b = courses[course].batches[batch], x = b.classes[+which.value];
   editingClass = x ? +which.value : -1;
-  for (const k of ["title", "url", "notes", "module", "tag"]) classForm.elements[k].value = x?.[k] || "";
+  for (const k of ["title", "url", "notes", "module", "tag", "date"]) classForm.elements[k].value = x?.[k] || "";
+  if (!x) classForm.elements.date.value = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);   // today, here
   classForm.elements.batch.value = b.name;
   if (!x) modulePick.value = b.classes.at(-1)?.module || "";
   newModule.value = "";
@@ -180,11 +182,10 @@ classForm.addEventListener("submit", e => {
   const b = courses[course].batches[batch], old = b.classes[editingClass], x = {};
   const module = (newModule.hidden ? modulePick : newModule).value.trim();
   if (module) x.module = module;
-  for (const k of ["title", "url", "tag", "notes"]) {
+  for (const k of ["title", "url", "tag", "notes", "date"]) {
     const v = classForm.elements[k].value.trim();
     if (v) x[k] = v;
   }
-  if (old?.date) x.date = old.date;
   const to = classForm.elements.batch.value.trim() || b.name;
   saveClasses(placeClass(courses[course], batch, editingClass, x, to), to);
 });
@@ -220,7 +221,8 @@ fetchOwn("classes").then(d => {
   $("course-name").textContent = c.name;
   $("course-teacher").textContent = c.teacher || "";
   $("course-teacher").hidden = !c.teacher;
-  win.hidden = $("tools").hidden = false;
+  win.hidden = false;
+  $("tools").hidden = !d.owner;
   fillClassList();
   if (!calm.matches) win.animate([{ opacity: 0, transform: "translateY(30px)" }, { opacity: 1, transform: "none" }], { duration: 900, easing: "cubic-bezier(.22,.61,.36,1)" });
   if (ask.has("i")) playClass(+ask.get("i"));

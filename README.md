@@ -40,6 +40,15 @@ step, no npm, no database.
   buttons in the corner of the course page.
 - **Links** (owner only): links (Drive folders and the like) as coloured tiles in named
   groups, in a pop-up opened from the link button beside the Courses heading.
+- **Shared links**: give someone courses, or batches of them (one or several,
+  across courses), with a link like `archive.saeedzafar.se/#CTB3` and its own
+  password. Make them, set or
+  reset their passwords, and delete them on the dashboard
+  (`archive.saeedzafar.se/#dashboard`). A new password or a deleted link ends
+  its guests' access at once. Guests see only what was shared and can change
+  nothing.
+- **Classes** run newest first; under the video, the class's date and its week
+  in the batch.
 
 ## How it's built
 
@@ -60,7 +69,13 @@ step, no npm, no database.
 ## Security
 
 - **Visitors never receive notes, private items, courses or links.** They are removed on the
-  server before anything is sent; nothing is merely hidden on screen.
+  server before anything is sent; nothing is merely hidden on screen. A guest
+  with a shared link receives only that course (or batch).
+- **Shared-link passwords** are checked against bcrypt hashes and kept
+  encrypted (AES-256-GCM, with a key from `api/config.php`) so the dashboard
+  can show them: `data/shares.php` alone gives neither away. A guest's cookie
+  is signed with the share, so deleting the link or changing its password
+  signs its guests out. Wrong guest passwords count toward the same lockout.
 - **Password**: only a bcrypt hash is stored (`api/config.php`, never in this
   repository). After 5 wrong attempts from one address, or 30 in total, sign-in
   is locked for 15 minutes.

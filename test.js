@@ -9,8 +9,8 @@ const { spawn, spawnSync } = require("child_process");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 const cut = src.indexOf("/* ---- DOM ---- */");
 assert.ok(cut > 0, "DOM marker moved — update test.js");
-const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place";
-const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place } =
+const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place, shareCode, weekOf";
+const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place, shareCode, weekOf } =
   new Function(src.slice(0, cut) + `\nreturn { ${names} };`)();
 
 /* spines */
@@ -29,6 +29,20 @@ assert.strictEqual(yearText(null), "");
 assert.strictEqual(linkHost("https://www.gutenberg.org/ebooks/2600"), "gutenberg.org", "a reading link shows its site");
 assert.strictEqual(linkHost("javascript:alert(1)"), "", "and only web addresses ever become links");
 assert.strictEqual(linkHost("drive.google.com/file/d/x"), "");
+const CT3 = { course: "Critical Thinking", batch: "Batch 3" }, EI6 = { course: "Emotional Intelligence", batch: "Batch 6" };
+assert.strictEqual(shareCode([CT3]), "CTB3", "a batch's link: the course's initials, B and its number");
+assert.strictEqual(shareCode([{ course: "Critical Thinking", batch: "" }]), "CT", "a whole course: its initials");
+assert.strictEqual(shareCode([CT3, EI6]), "CTB3EIB6", "several: one after another");
+assert.strictEqual(shareCode([{ course: "قرآن فہمی", batch: "" }]), "", "no Latin initials, no suggestion");
+assert.strictEqual(shareCode([CT3, { course: "قرآن فہمی", batch: "" }]), "", "not even in part");
+assert.strictEqual(shareCode([CT3, EI6, CT3, EI6, CT3, EI6]), "", "nor past 20 letters (24 here)");
+assert.strictEqual(shareCode([]), "");
+const batchDates = ["2026-10-10", "2026-10-03", "", "2026-10-05"];   // the first class: Saturday 3 October
+assert.strictEqual(weekOf("2026-10-03", batchDates), 1, "the first class is in week 1");
+assert.strictEqual(weekOf("2026-10-04", batchDates), 1, "so is the Sunday after it");
+assert.strictEqual(weekOf("2026-10-05", batchDates), 2, "a Monday starts week 2");
+assert.strictEqual(weekOf("2026-12-28", batchDates), 14, "weeks carry on across months (Monday 28 December: 13 Mondays after 28 September)");
+assert.strictEqual(weekOf("", batchDates), 0, "no date, no week");
 
 /* class recordings */
 assert.deepStrictEqual(modulesOf([{ module: "Cortisol", title: "a" }, { module: "Cortisol", title: "b" }, { module: "Oxytocin", title: "c" }, { module: "Cortisol", title: "d" }])
@@ -155,7 +169,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
 
     /* a visitor */
     let r = await get();
-    assert.deepStrictEqual(await r.json(), { owner: false, items: [] });
+    assert.deepStrictEqual(await r.json(), { owner: false, guest: false, items: [] });
     assert.strictEqual(r.headers.get("cache-control"), "no-store", "what you see signed in is never cached for someone else");
     assert.strictEqual((await post({ op: "put", item: { id: "aaaaaaaa-1", kind: "book", title: "X", pages: 1 } })).status, 401, "visitors can't change anything");
 
@@ -260,6 +274,118 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
       assert.strictEqual((await post({ op: "links", groups: bad }, { cookie: me })).status, 400, "refused: " + JSON.stringify(bad));
     }
     assert.strictEqual((await (await get("?links", me)).json()).groups[0].links[0].title, "CT-B3", "a refused save changes nothing");
+
+    /* shared links: a guest gets one course, or one batch of it, and nothing else */
+    const throttled = fs.existsSync(tmp + "/data/throttle.php") ? file("data/throttle.php") : null;
+    const unthrottle = () => throttled === null ? fs.rmSync(tmp + "/data/throttle.php", { force: true }) : fs.writeFileSync(tmp + "/data/throttle.php", throttled);
+    await post({ op: "classes", courses: [
+      { name: "Critical Thinking", batches: [{ name: "Batch 3", resources: [{ title: "B3 drive", url: "https://drive.google.com/b3" }], classes: [{ title: "Three", url: "https://youtu.be/batch3video" }] },
+                                             { name: "Batch 5", classes: [{ title: "Five", url: "https://youtu.be/batch5video" }] }] },
+      { name: "قرآن فہمی", batches: [{ name: "Batch 1", classes: [{ title: "Q", url: "https://youtu.be/quranvideo" }] }] },
+    ] }, { cookie: me });
+    const scope = (course, batch = "") => ({ course, batch }), CT3 = scope("Critical Thinking", "Batch 3");
+    const share = (x, cookie = me) => post({ op: "share", scope: [CT3], code: "NEW", ...x }, { cookie });
+    assert.strictEqual((await share({})).status, 200);
+    await post({ op: "unshare", code: "NEW" }, { cookie: me });
+    assert.strictEqual((await share({}, "")).status, 401, "visitors can't share");
+    r = await share({ code: " ctb3 " });
+    let sh = await r.json();
+    const pwOf = (list, code) => list.find(x => x.code === code).password;
+    const pw3 = pwOf(sh.shares, "CTB3");
+    assert.match(pw3, /^[a-km-zA-HJ-NP-Z2-9]{4}-[a-km-zA-HJ-NP-Z2-9]{4}-[a-km-zA-HJ-NP-Z2-9]{4}$/, "no password given: the server makes one");
+    assert.deepStrictEqual(sh.shares.map(x => [x.code, x.scope]), [["CTB3", [CT3]]], "codes are kept in capitals");
+    assert.ok(!("hash" in sh.shares[0]) && !("sealed" in sh.shares[0]), "the hash and the sealed copy never leave the server");
+    assert.ok(file("data/shares.php").startsWith(GUARD) && !file("data/shares.php").includes(pw3), "the password isn't in the file as written, and it's behind the guard");
+    const pwCT = pwOf((await (await share({ code: "CT", scope: [scope("Critical Thinking")], password: "  my own words  " })).json()).shares, "CT");
+    assert.strictEqual(pwCT, "my own words", "or you choose it (trimmed)");
+    for (const [bad, why] of [
+      [{ code: "ctb3" }, "a code is shared once"], [{ code: "signin" }, "your own door is not a code"], [{ code: "Courses" }, "nor is #courses"],
+      [{ code: "Dashboard" }, "nor #dashboard"], [{ password: "short" }, "a chosen password has 6 characters or more"], [{ password: 123456 }, "a password is text"],
+      [{ code: "C" }, "codes are 2 to 20 letters and digits"], [{ code: "CT-3" }, "letters and digits only"], [{ code: ["CT9"] }, "a code is text"],
+      [{ scope: [scope("Nope")] }, "only real courses"], [{ scope: [scope("Critical Thinking", "Batch 9")] }, "and real batches"],
+      [{ scope: [CT3, scope("Nope")] }, "every one of them"], [{ scope: [{ course: ["Critical Thinking"] }] }, "a course is a name"],
+      [{ scope: [] }, "a link opens something"], [{ scope: "Critical Thinking" }, "a scope is a list"], [{ scope: null }, "and is needed"],
+    ]) assert.strictEqual((await share(bad)).status, 400, why);
+    assert.strictEqual((await get("?shares")).status, 404, "to visitors the shares do not exist");
+    sh = await (await get("?shares", me)).json();
+    assert.deepStrictEqual(sh.shares.map(x => [x.code, x.password]), [["CTB3", pw3], ["CT", "my own words"]], "the dashboard shows each link's password");
+
+    assert.strictEqual((await post({ op: "guest", code: "CTB3", password: "wrong-pass-word" })).status, 401, "a wrong password opens nothing");
+    assert.strictEqual((await post({ op: "guest", code: "NOSUCH", password: pw3 })).status, 401, "nor does a code that isn't shared");
+    assert.strictEqual((await post({ op: "guest", code: "CT", password: pw3 })).status, 401, "a password opens only its own link");
+    r = await post({ op: "guest", code: "ctb3", password: ` ${pw3} ` });
+    assert.strictEqual(r.status, 200);
+    const graw = r.headers.getSetCookie()[0], g3 = cookieOf(r);
+    assert.match(graw, /^archive_guest=/);
+    assert.match(graw, /HttpOnly/i);
+    assert.match(graw, /SameSite=Strict/i);
+    assert.doesNotMatch(graw, /expires|max-age/i, "a guest's sign-in ends with the browser too");
+    assert.deepStrictEqual([(sh = await r.json()).owner, sh.guest], [false, true]);
+    let seen = await (await get("?classes", g3)).json();
+    assert.deepStrictEqual(seen.courses.map(c => [c.name, c.batches.map(b => b.name)]), [["Critical Thinking", ["Batch 3"]]], "a batch's guest sees that batch, with its resources");
+    assert.strictEqual(seen.courses[0].batches[0].resources[0].title, "B3 drive");
+    assert.ok(seen.owner === false && !JSON.stringify(seen).includes("batch5video") && !JSON.stringify(seen).includes("quranvideo"), "and nothing else");
+    sh = await (await get("", g3)).json();
+    assert.ok(sh.guest && !sh.owner && !sh.items.some(i => i.private || "notes" in i), "elsewhere a guest is a visitor");
+    assert.strictEqual((await get("?links", g3)).status, 404, "no links");
+    assert.strictEqual((await get("?shares", g3)).status, 404, "no shares");
+    assert.strictEqual((await get("?cover=cccccccc-3", g3)).status, 404, "no private covers");
+    for (const body of [{ op: "classes", courses: [] }, { op: "links", groups: [] }, { op: "put", item: book }, { op: "share", scope: [scope("Critical Thinking")], code: "MINE" }, { op: "unshare", code: "CT" }, { op: "repass", code: "CT", password: "mine123" }]) {
+      assert.strictEqual((await post(body, { cookie: g3 })).status, 401, "a guest changes nothing: " + body.op);
+    }
+    let gCT = cookieOf(await post({ op: "guest", code: "CT", password: pwCT }));
+    sh = await (await get("?shares", me)).json();
+    assert.deepStrictEqual(sh.opens.map(o => o.code), ["CTB3", "CT"], "each time a link lets someone in, the dashboard has it");
+    assert.ok(sh.opens.every(o => Math.abs(o.at - Date.now() / 1000) < 60), "with the time");
+    const DAY = 86400, t0 = Math.floor(Date.now() / 1000);
+    fs.writeFileSync(tmp + "/data/opens.php", GUARD + JSON.stringify([{ at: t0 - 91 * DAY, code: "OLD" }, { at: t0 - 89 * DAY, code: "CT" }, ...sh.opens]));
+    assert.deepStrictEqual((await (await get("?shares", me)).json()).opens.map(o => o.code), ["CT", "CTB3", "CT"], "after 90 days an entry goes");
+    assert.ok(!file("data/opens.php").includes("OLD"), "from the file too");
+
+    /* a new password: chosen or made; the guests who used the old one are out */
+    unthrottle();   // the wrong tries above would otherwise lock this address out
+    assert.strictEqual((await post({ op: "repass", code: "NOSUCH", password: "whatever1" }, { cookie: me })).status, 400, "only a shared link gets a new password");
+    assert.strictEqual((await post({ op: "repass", code: "CT", password: "abc" }, { cookie: me })).status, 400, "6 characters or more");
+    sh = await (await post({ op: "repass", code: "ct", password: "a new phrase" }, { cookie: me })).json();
+    assert.strictEqual(pwOf(sh.shares, "CT"), "a new phrase");
+    assert.strictEqual((await get("?classes", gCT)).status, 404, "a new password signs that link's guests out");
+    assert.strictEqual((await post({ op: "guest", code: "CT", password: pwCT })).status, 401, "the old password no longer works");
+    const gCT2 = cookieOf(await post({ op: "guest", code: "CT", password: "a new phrase" }));
+    assert.strictEqual((await get("?classes", gCT2)).status, 200, "the new one does");
+    const pwMade = pwOf((await (await post({ op: "repass", code: "CT", password: "" }, { cookie: me })).json()).shares, "CT");
+    assert.match(pwMade, /^\S{4}-\S{4}-\S{4}$/, "an empty one: the server makes one");
+    gCT = cookieOf(await post({ op: "guest", code: "CT", password: pwMade }));
+    assert.deepStrictEqual((await (await get("?classes", gCT)).json()).courses.map(c => c.batches.map(b => b.name)), [["Batch 3", "Batch 5"]], "a course's guest sees every batch");
+    assert.strictEqual((await get("?classes", g3.replace(/\.\d+\./, ".9999999999."))).status, 404, "a guest's cookie can't be stretched");
+    assert.strictEqual((await get("?classes", "archive_guest=CT.9999999999." + "0".repeat(64))).status, 404, "or made up");
+
+    /* deleting a link ends its guests' access at once; the code made again needs the new password */
+    sh = await (await post({ op: "unshare", code: "ctb3" }, { cookie: me })).json();
+    assert.deepStrictEqual(sh.shares.map(x => x.code), ["CT"]);
+    assert.strictEqual((await get("?classes", g3)).status, 404, "a deleted link opens nothing, even for someone already in");
+    assert.strictEqual((await get("?classes", gCT)).status, 200, "the other links keep working");
+    const pwNew = pwOf((await (await share({ code: "CTB3" })).json()).shares, "CTB3");
+    assert.notStrictEqual(pwNew, pw3);
+    assert.strictEqual((await get("?classes", g3)).status, 404, "the old sign-in doesn't come back with the code");
+    r = await post({ op: "logout" }, { cookie: gCT });
+    assert.ok(r.headers.getSetCookie().some(c => /^archive_guest=(deleted)?;/.test(c)), "signing out clears a guest too");
+
+    /* one link, several courses: whole ones, and batches of others */
+    sh = await (await share({ code: "MIX", scope: [scope("Critical Thinking", "Batch 5"), scope("قرآن فہمی"), scope("Critical Thinking", "Batch 5")], password: "mixed bag" })).json();
+    assert.deepStrictEqual(sh.shares.find(x => x.code === "MIX").scope, [scope("Critical Thinking", "Batch 5"), scope("قرآن فہمی")], "each course or batch once");
+    const gMix = cookieOf(await post({ op: "guest", code: "MIX", password: "mixed bag" }));
+    seen = await (await get("?classes", gMix)).json();
+    assert.deepStrictEqual(seen.courses.map(c => [c.name, c.batches.map(b => b.name)]), [["Critical Thinking", ["Batch 5"]], ["قرآن فہمی", ["Batch 1"]]], "its guest sees exactly those");
+    assert.ok(!JSON.stringify(seen).includes("batch3video") && !JSON.stringify(seen).includes("B3 drive"), "and not the batch left out");
+
+    /* a link made before links could open several courses still works */
+    const oldHash = spawnSync("php", ["-r", "echo password_hash('old style', PASSWORD_DEFAULT);"], { encoding: "utf8" }).stdout;
+    const kept = JSON.parse(file("data/shares.php").slice(GUARD.length));
+    fs.writeFileSync(tmp + "/data/shares.php", GUARD + JSON.stringify([...kept, { code: "OLD", course: "Critical Thinking", batch: "Batch 3", hash: oldHash, added: "2026-10-22" }]));
+    const gOld = cookieOf(await post({ op: "guest", code: "OLD", password: "old style" }));
+    assert.deepStrictEqual((await (await get("?classes", gOld)).json()).courses.map(c => c.batches.map(b => b.name)), [["Batch 3"]], "it opens what it did");
+    assert.deepStrictEqual((await (await get("?shares", me)).json()).shares.find(x => x.code === "OLD").scope, [CT3], "and the dashboard reads it like the others");
+    unthrottle();   // the lockout test below counts from before these wrong tries
 
     /* data files can't be read from the web, even if the server rules were missing */
     const stored = file("data/library.php");

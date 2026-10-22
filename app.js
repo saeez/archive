@@ -52,6 +52,26 @@ function place(groups, key, from, at, x, to) {
   if (at >= 0 && Object.values(src).every(v => !Array.isArray(v) || !v.length) && out.length > 1) out.splice(out.indexOf(src), 1);
   return out;
 }
+/* The week of its batch a class falls in: weeks run Monday to Sunday, and the
+   week of the batch's first dated class is week 1. 0 for a class without a date. */
+function weekOf(date, dates) {
+  const monday = d => { const t = Date.parse(d + "T00:00:00Z") / 864e5; return t - (t + 3) % 7; };   // day 0, 1 Jan 1970, was a Thursday
+  return date ? Math.floor((monday(date) - Math.min(...dates.filter(Boolean).map(monday))) / 7) + 1 : 0;
+}
+
+/* A code to suggest for courses and batches ([{course, batch}], batch "" for
+   every batch): each course's initials, then B and the batch's number, one
+   after another ("Critical Thinking", "Batch 3" → "CTB3"). Nothing when a name
+   has no Latin letters, or past 20 letters. */
+const shareCode = scope => {
+  const parts = scope.map(({ course, batch }) => {
+    const initials = (course.match(/\b[A-Za-z]/g) || []).join("").toUpperCase();
+    return initials && initials + (batch ? "B" + (batch.match(/\d+/)?.[0] || "") : "");
+  });
+  const code = parts.join("");
+  return parts.length && parts.every(Boolean) && code.length <= 20 ? code : "";
+};
+
 /* One of five tints for each module group: a module keeps its tint wherever it
    shows up again, and a new one takes the tint after the group above it. */
 function moduleTints(groups) {
@@ -304,6 +324,8 @@ function linkTile(x) {
 
 /* ---- saving ---- */
 
+const day = iso => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+
 let signedOut = () => {};          // what a page does when a save is turned away; it may return its own message
 async function send(body) {
   let r;
@@ -313,7 +335,7 @@ async function send(body) {
     throw new Error("Can't reach the server. Check your connection and try again.");
   }
   const data = await r.json().catch(() => null);
-  if (r.status === 401 && body.op !== "login") throw new Error(signedOut() || "You were signed out. Sign in, then save again: nothing you typed is lost.");
+  if (r.status === 401 && body.op !== "login" && body.op !== "guest") throw new Error(signedOut() || "You were signed out. Sign in, then save again: nothing you typed is lost.");
   if (!r.ok || !data) throw new Error(data?.error || (r.ok
     ? "This server can't run PHP, so nothing was saved. Start the site with: php -S localhost:8000"
     : `Something went wrong (${r.status}).`));

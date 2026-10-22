@@ -9,7 +9,13 @@
                POST {op:"login", password}   → a signed, HttpOnly cookie that ends with the browser session (7 days at most)
                POST {op:"logout"}
                POST {op:"put", item} | {op:"delete", id}
-   Lists and edits answer {owner, items}.
+               GET ?shares          → {shares, opens}: the shared links with their passwords, and when each was used
+               POST {op:"share", code, scope, password?} → {shares}: a new link (no password: one is made)
+               POST {op:"repass", code, password?}    → {shares}: a new password; that link's guests are signed out
+               POST {op:"unshare", code}              → {shares}: that link's guests lose access at once
+   Guests:     POST {op:"guest", code, password}      → a signed, HttpOnly cookie for that one share
+               GET ?classes         → only the shared courses, or only their shared batches
+   Lists and edits answer {owner, guest, items}.
 
    The password itself is never stored. api/config.php holds a bcrypt hash and
    a random signing key, written on your own computer by `php api/setup.php`. */
@@ -25,6 +31,9 @@ const COVERS    = __DIR__ . '/../data/covers';
 const THROTTLE  = __DIR__ . '/../data/throttle.php';
 const CLASSES   = __DIR__ . '/../data/classes.php';
 const LINKS     = __DIR__ . '/../data/links.php';
+const SHARES    = __DIR__ . '/../data/shares.php';
+const OPENS     = __DIR__ . '/../data/opens.php';
+const KEEP_DAYS = 90;
 /* What only the librarian sees, by name: its file, and the key it travels under. */
 const OWN       = ['classes' => [CLASSES, 'courses'], 'links' => [LINKS, 'groups']];
 /* The first line of every data file. Should a misconfigured server ever serve
@@ -34,6 +43,9 @@ const ID_RE     = '/^[a-z0-9-]{8,40}$/';
 const MAX_BYTES = 4194304;           /* a 200,000-character scroll or a cover image, plus JSON escaping */
 const MAX_COVER = 2097152;
 const COOKIE    = 'archive_owner';
+const GUEST     = 'archive_guest';
+const CODE_RE   = '/^[A-Z0-9]{2,20}$/';  /* a shared link's code: archive.saeedzafar.se/#CTB3 */
+const RESERVED  = ['SIGNIN', 'COURSES', 'DASHBOARD'];  /* hashes the page already uses */
 const DAYS      = 7;                 /* how long a sign-in lasts */
 const WINDOW    = 900;               /* wrong passwords are remembered for 15 minutes; */
 const PER_IP    = 5;                 /* this many from one address, */
@@ -90,8 +102,8 @@ function is_owner(?array $cfg): bool {
    send it. Secure: only over HTTPS (your own computer has no HTTPS).
    No expiry date: the browser drops it when it closes, and the pages sign out
    any tab opened afresh (sessionStorage), so closing the site signs out. */
-function cookie(string $value, int $expires, bool $https): void {
-  setcookie(COOKIE, $value, ['expires' => $expires, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
+function cookie(string $name, string $value, int $expires, bool $https): void {
+  setcookie($name, $value, ['expires' => $expires, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
 }
 
 /* What may be shown: visitors get no private items and no notes. Covers
@@ -107,26 +119,121 @@ function view(array $items, bool $owner): array {
   return $out;
 }
 
+/* ---- guests: a shared link (#CODE) and its own password open the courses, or
+   the batches of courses, it names, and nothing else. Shares are {code, scope:
+   [{course, batch ('' for every batch)}], hash, sealed, added} (the first
+   shares held one {course, batch} instead: scope_of() reads both). The password is checked against a bcrypt
+   hash, and kept sealed (AES-256-GCM, with a key from api/config.php) only so
+   the dashboard can show it; the data folder alone gives neither away. The
+   guest's cookie signs the hash too, so deleting a share or changing its
+   password ends every sign-in made with it. */
+
+function guest_token(array $cfg, array $share, int $until): string {
+  return "{$share['code']}.$until." . hash_hmac('sha256', "guest|{$share['code']}|$until|{$share['hash']}", $cfg['secret']);
+}
+function find_share(array $shares, string $code): ?array {
+  foreach ($shares as $s) if (($s['code'] ?? '') === $code) return $s;
+  return null;
+}
+/* The share this browser's guest cookie still holds, or null. */
+function guest_share(?array $cfg): ?array {
+  $c = (string)($_COOKIE[GUEST] ?? '');
+  if (!$cfg || !preg_match('/^([A-Z0-9]{2,20})\.(\d{1,12})\.[0-9a-f]{64}$/', $c, $m) || (int)$m[2] <= time()) return null;
+  $s = find_share(read_data(SHARES) ?: [], $m[1]);
+  return $s && hash_equals(guest_token($cfg, $s, (int)$m[2]), $c) ? $s : null;
+}
+function scope_of(array $share): array {
+  return $share['scope'] ?? [['course' => $share['course'] ?? '', 'batch' => $share['batch'] ?? '']];
+}
+/* What a scope opens: each course it names, whole, or holding only the batches
+   it names. */
+function shared_courses(array $courses, array $scope): array {
+  $out = [];
+  foreach ($courses as $c) {
+    if (!is_array($c)) continue;
+    $batches = array_column(array_filter($scope, fn($x) => $x['course'] === ($c['name'] ?? null)), 'batch');
+    if (!$batches) continue;
+    if (!in_array('', $batches, true)) {
+      unset($c['resources']);
+      $c['batches'] = array_values(array_filter($c['batches'] ?? [], fn($b) => in_array($b['name'] ?? null, $batches, true)));
+    }
+    if (!empty($c['batches'])) $out[] = $c;
+  }
+  return $out;
+}
+function share_key(array $cfg): string {
+  return hash_hmac('sha256', 'share passwords', $cfg['secret'], true);
+}
+function seal(array $cfg, string $password): string {
+  $iv = random_bytes(12);
+  $box = openssl_encrypt($password, 'aes-256-gcm', share_key($cfg), OPENSSL_RAW_DATA, $iv, $tag);
+  return base64_encode($iv . $tag . $box);
+}
+function unseal(array $cfg, string $sealed): string {
+  $b = base64_decode($sealed, true);
+  if ($b === false || strlen($b) < 29) return '';
+  $p = openssl_decrypt(substr($b, 28), 'aes-256-gcm', share_key($cfg), OPENSSL_RAW_DATA, substr($b, 0, 12), substr($b, 12, 16));
+  return $p === false ? '' : $p;
+}
+/* Shares as the dashboard sees them: the password, never the hash. */
+function listed(array $shares, array $cfg): array {
+  return array_map(fn($s) => array_diff_key($s, ['hash' => 0, 'sealed' => 0, 'course' => 0, 'batch' => 0])
+    + ['scope' => scope_of($s), 'password' => unseal($cfg, (string)($s['sealed'] ?? ''))], $shares);
+}
+/* [{at, code}], oldest first, nothing older than KEEP_DAYS; $tidy writes the
+   file back without the older ones. */
+function opens(bool $tidy): array {
+  $all = read_data(OPENS) ?: [];
+  $kept = array_values(array_filter($all, fn($o) => is_array($o) && is_int($o['at'] ?? null) && $o['at'] > time() - KEEP_DAYS * 86400));
+  if ($tidy && count($kept) !== count($all)) write_data(OPENS, $kept);
+  return $kept;
+}
+/* The password sent (6 to 72 characters), or a new one when none was sent. */
+function chosen_password($in): string {
+  if (!is_string($in)) reply(400, ['error' => 'A password is text.']);
+  $p = trim($in);
+  if ($p === '') return make_password();
+  if (mb_strlen($p) < 6 || strlen($p) > 72) reply(400, ['error' => 'A password needs 6 to 72 characters.']);
+  return $p;
+}
+/* Easy to read out and type (no 0/O, 1/l/I): 12 of 56 characters, about 70 bits. */
+function make_password(): string {
+  $abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  $p = '';
+  for ($i = 0; $i < 12; $i++) $p .= $abc[random_int(0, strlen($abc) - 1)];
+  return implode('-', str_split($p, 4));
+}
+
 $local = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 $owner = is_owner($cfg);
+$guest = $owner ? null : guest_share($cfg);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $damaged = $owner ? 'data/library.php is damaged. data/library.bak.php holds the version before.' : 'The archive is unavailable right now.';
 
 /* ---- reading ---- */
 
 if ($method === 'GET') {
-  /* courses and links are yours alone: to anyone else they do not exist */
+  /* courses and links are yours alone (a guest sees only what was shared):
+     to anyone else they do not exist */
   foreach (OWN as $what => [$file, $key]) {
     if (!isset($_GET[$what])) continue;
-    if (!$owner) reply(404);
+    if (!$owner && !($guest && $what === 'classes')) reply(404);
     $value = read_data($file);
-    if ($value === false) reply(500, ['error' => 'data/' . basename($file) . ' is damaged.']);
-    reply(200, [$key => $value]);
+    if ($value === false) reply(500, ['error' => $owner ? 'data/' . basename($file) . ' is damaged.' : 'The courses are unavailable right now.']);
+    reply(200, ['owner' => $owner, $key => $owner ? $value : shared_courses($value, scope_of($guest))]);
+  }
+  if (isset($_GET['shares'])) {
+    if (!$owner) reply(404);
+    $shares = read_data(SHARES);
+    if ($shares === false) reply(500, ['error' => 'data/shares.php is damaged.']);
+    $lock = is_dir(dirname(DATA)) ? fopen(dirname(DATA) . '/.lock', 'c') : false;
+    if ($lock) flock($lock, LOCK_EX);
+    reply(200, ['shares' => listed($shares, $cfg), 'opens' => opens((bool)$lock)]);
   }
   $items = read_data(DATA);
   if ($items === false) reply(500, ['error' => $damaged]);
-  if (!isset($_GET['cover'])) reply(200, ['owner' => $owner, 'items' => view($items, $owner)]);
+  if (!isset($_GET['cover'])) reply(200, ['owner' => $owner, 'guest' => (bool)$guest, 'items' => view($items, $owner)]);
 
   $id = (string)$_GET['cover'];
   $at = preg_match(ID_RE, $id) ? array_search($id, array_column($items, 'id'), true) : false;
@@ -170,12 +277,14 @@ $items = read_data(DATA);
 if ($items === false) reply(500, ['error' => $damaged]);
 
 if ($op === 'logout') {
-  cookie('', 1, $https);
-  reply(200, ['owner' => false, 'items' => view($items, false)]);
+  cookie(COOKIE, '', 1, $https);
+  cookie(GUEST, '', 1, $https);
+  reply(200, ['owner' => false, 'guest' => false, 'items' => view($items, false)]);
 }
 
-if ($op === 'login') {
+if ($op === 'login' || $op === 'guest') {
   if (!$cfg) reply(503, ['error' => 'No password has been set yet. On your computer, run: php api/setup.php']);
+  /* Your wrong passwords and guests' are counted together. */
   $who = hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? ''));   /* addresses are kept only as hashes */
   $fails = read_data(THROTTLE) ?: [];
   $fails = array_values(array_filter($fails, fn($f) => is_array($f) && ($f[0] ?? 0) > time() - WINDOW));
@@ -183,18 +292,65 @@ if ($op === 'login') {
   if ($mine >= PER_IP || count($fails) >= OVERALL) reply(429, ['error' => 'Too many wrong passwords. Wait 15 minutes, then try again.']);
 
   $pw = $req['password'] ?? null;
-  if (!is_string($pw) || strlen($pw) > 1000 || !password_verify($pw, $cfg['hash'])) {
+  if ($op === 'guest' && is_string($pw)) $pw = trim($pw);
+  $share = null;
+  if ($op === 'guest') {
+    $code = is_string($req['code'] ?? null) ? strtoupper($req['code']) : '';
+    $share = find_share(read_data(SHARES) ?: [], $code);
+  }
+  /* a code that isn't shared is checked against a hash all the same, so it
+     takes as long, and reads the same, as a wrong password */
+  $hash = $op === 'login' ? $cfg['hash'] : ($share['hash'] ?? $cfg['hash']);
+  if (!is_string($pw) || strlen($pw) > 1000 || !password_verify($pw, $hash) || ($op === 'guest' && !$share)) {
     $fails[] = [time(), $who];
     write_data(THROTTLE, $fails);
     usleep(random_int(400000, 900000));
     reply(401, ['error' => 'That is not the password.']);
   }
   $until = time() + DAYS * 86400;
-  cookie(token($cfg, $until), 0, $https);
-  reply(200, ['owner' => true, 'items' => view($items, true)]);
+  if ($op === 'login') cookie(COOKIE, token($cfg, $until), 0, $https);
+  else {
+    cookie(GUEST, guest_token($cfg, $share, $until), 0, $https);
+    $opens = opens(false);
+    $opens[] = ['at' => time(), 'code' => $share['code']];
+    write_data(OPENS, array_slice($opens, -10000));
+  }
+  reply(200, ['owner' => $op === 'login' || $owner, 'guest' => $op === 'guest', 'items' => view($items, $op === 'login' || $owner)]);
 }
 
 if (!$owner) reply(401, ['error' => 'Sign in to make changes.']);
+
+/* Shared links: made, given a new password, or deleted. */
+if ($op === 'share' || $op === 'repass' || $op === 'unshare') {
+  $shares = read_data(SHARES);
+  if ($shares === false) reply(500, ['error' => 'data/shares.php is damaged. Nothing was changed.']);
+  $code = is_string($req['code'] ?? null) ? strtoupper(trim($req['code'])) : '';
+  if ($op === 'unshare') {
+    $shares = array_values(array_filter($shares, fn($s) => ($s['code'] ?? '') !== $code));
+  } elseif ($op === 'repass') {
+    $at = array_search($code, array_column($shares, 'code'), true);
+    if ($at === false) reply(400, ['error' => "#$code is not shared."]);
+    $password = chosen_password($req['password'] ?? '');
+    $shares[$at]['hash'] = password_hash($password, PASSWORD_DEFAULT);
+    $shares[$at]['sealed'] = seal($cfg, $password);
+  } else {
+    if (!preg_match(CODE_RE, $code) || in_array($code, RESERVED, true)) reply(400, ['error' => 'A code is 2 to 20 letters (A–Z) and digits.']);
+    if (find_share($shares, $code)) reply(400, ['error' => "#$code is already shared. Pick another code, or delete that link first."]);
+    $in = $req['scope'] ?? null;
+    if (!is_array($in) || !array_is_list($in) || !$in || count($in) > 200) reply(400, ['error' => 'Tick at least one course or batch.']);
+    $courses = read_data(CLASSES) ?: [];
+    $scope = [];
+    foreach ($in as $x) {
+      $item = ['course' => $x['course'] ?? null, 'batch' => $x['batch'] ?? ''];
+      if (!is_string($item['course']) || !is_string($item['batch']) || !shared_courses($courses, [$item])) reply(400, ['error' => 'No such course or batch.']);
+      if (!in_array($item, $scope, true)) $scope[] = $item;
+    }
+    $password = chosen_password($req['password'] ?? '');
+    $shares[] = ['code' => $code, 'scope' => $scope, 'hash' => password_hash($password, PASSWORD_DEFAULT), 'sealed' => seal($cfg, $password), 'added' => gmdate('Y-m-d')];
+  }
+  if (!write_data(SHARES, $shares)) reply(500, ['error' => 'Could not save. Nothing was changed.']);
+  reply(200, ['shares' => listed($shares, $cfg)]);
+}
 
 /* A titled web link (never javascript:), or a string saying what is wrong. */
 function clean_link($x): array|string {

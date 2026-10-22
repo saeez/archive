@@ -10,7 +10,7 @@ const GAP = 6;                    // space after each thing on the shelf, px (ma
 
 let items = [];
 let genre = "";                  // the genre chosen above the shelf, lower-case; "" for all
-let owner = false;
+let owner = false, guest = false;
 let editing = null, privateTouched = false;
 let draft = { cover: "", coverData: null, color: "" };   // the cover being edited
 let looping = false, offset = 0, glide = 0, vel = 0, idleUntil = 0, lastT = 0;
@@ -18,7 +18,6 @@ let hoverSlot = null, cardFor = null, follow = null, drag = null, swallowClick =
 let detailSlot = null, closing = false;
 
 const byId = id => items.find(i => i.id === id);
-const day = iso => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 const marked = (tag, cls, text) => markInto(el(tag, cls), text, words(search.value));
 
@@ -514,48 +513,62 @@ function glow(id) {
 /* Saves, then shows the library as it now stands. */
 async function save(body) {
   const data = await send(body);
-  if (body.op === "login") keepTab();
-  if (Array.isArray(data.items)) { items = data.items; setOwner(data.owner); }
+  if (body.op === "login" || body.op === "guest") keepTab();
+  if (Array.isArray(data.items)) { items = data.items; setOwner(data.owner, data.guest); }
   return data;
 }
 signedOut = () => { setOwner(false); openSignin(); };
 
 /* ---- signing in ---- */
 
-function setOwner(v) {
-  const was = owner;
+let classesReady = Promise.resolve(), door = "";
+function setOwner(v, g = false) {
+  const was = [owner, guest];
   owner = !!v;
+  guest = !owner && !!g;
   document.body.classList.toggle("owner", owner);
-  if (owner !== was) loadClasses();
+  if (owner !== was[0] || guest !== was[1]) classesReady = loadClasses();
 }
 
-function openSignin() {
+function openSignin(to = "") {
+  door = to;
   if ($("signin").open) return;
   $("signin-form").reset();
   $("signin-error").textContent = "";
   $("signin").showModal();
 }
 const dropHash = () => history.replaceState(null, "", location.pathname + location.search);
-const checkHash = () => { if (location.hash === "#signin") owner ? dropHash() : openSignin(); };
+const checkHash = () => {
+  const h = location.hash.slice(1);
+  if (h === "signin") owner ? dropHash() : openSignin();
+  else if (h === "dashboard") owner ? openDashboard() : openSignin("#dashboard");
+  else if (h !== "courses" && /^[A-Za-z0-9]{2,20}$/.test(h)) owner ? dropHash() : openSignin(h.toUpperCase());
+};
 
 $("signin-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const f = e.target, btn = f.querySelector(".solid-btn");
+  const f = e.target, btn = f.querySelector(".solid-btn"), to = door, code = /^[A-Z0-9]+$/.test(to) ? to : "";
   btn.disabled = true;
   $("signin-error").textContent = "";
   try {
-    await save({ op: "login", password: f.elements.password.value });
+    await save(code ? { op: "guest", code, password: f.elements.password.value } : { op: "login", password: f.elements.password.value });
     f.reset();
     $("signin").close();
     dropHash();
+    if (code) {
+      await classesReady;
+      if (courses.length === 1) return location.assign("course.html?c=0");
+    }
     render();
+    if (code) $("classes").scrollIntoView({ block: "start" });
+    if (to === "#dashboard") openDashboard();
   } catch (err) {
     $("signin-error").textContent = err.message;
   } finally {
     btn.disabled = false;
   }
 });
-$("signin").addEventListener("close", () => { $("signin-form").reset(); if (location.hash === "#signin") dropHash(); });
+$("signin").addEventListener("close", () => { $("signin-form").reset(); if (location.hash && location.hash !== "#courses") dropHash(); });
 $("signin-cancel").onclick = () => $("signin").close();
 $("signout").onclick = async () => {
   try { await save({ op: "logout" }); } catch { setOwner(false); }
@@ -568,8 +581,8 @@ addEventListener("hashchange", checkHash);
 let courses = [];
 
 async function loadClasses() {
-  const got = owner ? (await fetchOwn("classes"))?.courses : [];
-  courses = owner && Array.isArray(got) ? got.filter(c => c && Array.isArray(c.batches) && c.batches.length) : [];
+  const got = owner || guest ? (await fetchOwn("classes"))?.courses : [];
+  courses = (owner || guest) && Array.isArray(got) ? got.filter(c => c && Array.isArray(c.batches) && c.batches.length) : [];
   showClasses();
   if (location.hash === "#courses" && courses.length) { $("classes").scrollIntoView({ block: "start" }); dropHash(); }   // back from a course page
 }
@@ -636,6 +649,167 @@ $("link-pen").onclick = () => openLinkEditor("Links", linkGroups, true, async ne
 });
 $("links-close").onclick = () => linksDialog.close();
 linksDialog.addEventListener("click", e => { if (e.target === linksDialog) linksDialog.close(); });
+
+/* ---- the dashboard: shared links (each opens one course, or one batch, with
+   its own password), and when they were opened ---- */
+
+const dash = $("dashboard"), shareForm = $("share-form"), PER_PAGE = 10;
+let shares = [], opens = [], openPage = 0, suggested = "";
+const shareUrl = code => location.origin + location.pathname + "#" + code;
+/* What a link opens, a line for each course or batch. */
+function sharedWhat(s) {
+  const box = el("div");
+  for (const x of s.scope) {
+    const c = courses.find(y => y.name === x.course), line = el("div");
+    line.append(el("bdi", "", x.course), " · " + (x.batch || "Every batch"));
+    if (!c || (x.batch && !c.batches.some(b => b.name === x.batch))) line.append(el("span", "label gone", "No longer there"));
+    box.append(line);
+  }
+  return box;
+}
+const when = at => new Date(at * 1000).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+function copy(text, b) {
+  navigator.clipboard?.writeText(text).then(() => {
+    b.classList.add("done");
+    setTimeout(() => b.classList.remove("done"), 1600);
+  }, () => {});
+}
+function emptyRow(cols, text) {
+  const tr = el("tr"), td = el("td", "label class-empty", text);
+  td.colSpan = cols;
+  tr.append(td);
+  return tr;
+}
+
+function showShares() {
+  $("share-count").textContent = shares.length ? `· ${shares.length}` : "";
+  $("share-rows").replaceChildren(...(!shares.length ? [emptyRow(4, "Nothing shared yet.")] : [...shares].reverse().map(s => {
+    const tr = el("tr"), link = el("td"), what = el("td"), pw = el("td"), tools = el("td", "row-tools");
+    link.append(el("span", "share-link", shareUrl(s.code)));
+    what.append(sharedWhat(s));
+    pw.append(el("code", "share-password", s.password || "—"));
+    const cp = iconBtn("i-copy", `Copy the link and password of #${s.code}`), pen = iconBtn("i-pen", `New password for #${s.code}`), del = iconBtn("i-trash", `Delete #${s.code}`, "icon-btn trash");
+    cp.onclick = () => copy(`${shareUrl(s.code)}\nPassword: ${s.password}`, cp);
+    pen.onclick = () => editPassword(s, pw);
+    del.onclick = () => confirm(`Delete #${s.code}? Whoever has this link loses access at once.`) && act({ op: "unshare", code: s.code });
+    tools.append(cp, pen, del);
+    tr.append(link, what, pw, tools);
+    return tr;
+  })));
+}
+
+/* A new password, typed in its place: Enter saves it (left empty, one is
+   made), Escape keeps the old one. Whoever used the old one signs in again. */
+function editPassword(s, cell) {
+  const input = Object.assign(el("input", "pw-input"), { value: s.password, placeholder: "Empty: make one", maxLength: 72, autocomplete: "off" });
+  input.setAttribute("aria-label", `New password for #${s.code}`);
+  cell.replaceChildren(input);
+  input.focus();
+  input.select();
+  input.onkeydown = async e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (!(await act({ op: "repass", code: s.code, password: input.value }))) input.focus();
+  };
+}
+dash.addEventListener("cancel", e => { if (document.activeElement?.classList.contains("pw-input")) { e.preventDefault(); showShares(); } });
+
+/* Saves a change to the shared links, then shows them as they now stand. */
+async function act(body) {
+  $("share-error").textContent = "";
+  try {
+    shares = (await send(body)).shares;
+  } catch (err) {
+    $("share-error").textContent = err.message;
+    return false;
+  }
+  showShares();
+  showOpens();
+  return true;
+}
+
+function showOpens() {
+  const list = [...opens].reverse(), pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+  openPage = Math.min(openPage, pages - 1);
+  $("open-rows").replaceChildren(...(!list.length ? [emptyRow(3, "Not opened yet.")] : list.slice(openPage * PER_PAGE, (openPage + 1) * PER_PAGE).map(o => {
+    const tr = el("tr"), what = el("td"), s = shares.find(x => x.code === o.code);
+    what.append(s ? sharedWhat(s) : el("span", "label gone", "Deleted"));
+    tr.append(el("td", "", when(o.at)), el("td", "share-link", "#" + o.code), what);
+    return tr;
+  })));
+  $("open-page").textContent = `${openPage + 1} of ${pages}`;
+  $("open-prev").disabled = openPage === 0;
+  $("open-next").disabled = openPage === pages - 1;
+  $("pager").hidden = pages < 2;
+}
+$("open-prev").onclick = () => { openPage--; showOpens(); };
+$("open-next").onclick = () => { openPage++; showOpens(); };
+
+/* What a new link opens: a row of ticks for each course, "Every batch" first;
+   ticking it ticks (and holds) all that course's batches. */
+function tick(course, batch, text) {
+  const label = el("label", "tick"), box = Object.assign(el("input"), { type: "checkbox" });
+  Object.assign(box.dataset, { course, batch });
+  label.append(box, text);
+  return label;
+}
+function fillScope() {
+  $("scope-list").replaceChildren(...courses.map(c => {
+    const row = el("div", "scope-course");
+    row.append(el("bdi", "scope-name", c.name), tick(c.name, "", "Every batch"), ...c.batches.map(b => tick(c.name, b.name, b.name)));
+    return row;
+  }));
+}
+function picked() {
+  const all = [...$("scope-list").querySelectorAll("input:checked")].map(b => ({ course: b.dataset.course, batch: b.dataset.batch }));
+  const whole = new Set(all.filter(x => !x.batch).map(x => x.course));
+  return all.filter(x => !x.batch || !whole.has(x.course));
+}
+$("scope-list").onchange = e => {
+  const b = e.target;
+  if (!b.dataset.batch) for (const x of b.closest(".scope-course").querySelectorAll("input:not([data-batch=''])")) Object.assign(x, { checked: b.checked, disabled: b.checked });
+  suggest();
+};
+
+/* The code follows what is ticked, until you type your own. */
+function suggest() {
+  const f = shareForm.elements;
+  if (f.code.value === suggested) f.code.value = suggested = shareCode(picked());
+}
+
+async function openDashboard() {
+  await classesReady;
+  const d = await fetchOwn("shares");
+  shares = Array.isArray(d?.shares) ? d.shares : [];
+  opens = Array.isArray(d?.opens) ? d.opens : [];
+  openPage = 0;
+  shareForm.reset();
+  fillScope();
+  suggested = "";
+  suggest();
+  $("share-error").textContent = "";
+  showShares();
+  showOpens();
+  if (dash.open) return;
+  dash.showModal();
+  if (!calm.matches) $("dash-window").animate([{ opacity: 0, transform: "translateY(30px)" }, { opacity: 1, transform: "none" }], { duration: 900, easing: "cubic-bezier(.22,.61,.36,1)" });
+}
+
+shareForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = shareForm.elements, btn = shareForm.querySelector(".solid-btn"), scope = picked();
+  if (!scope.length) { $("share-error").textContent = "Tick at least one course or batch."; return; }
+  btn.disabled = true;
+  if (await act({ op: "share", scope, code: f.code.value, password: f.password.value })) {
+    shareForm.reset();
+    fillScope();
+    suggested = "";
+  }
+  btn.disabled = false;
+});
+$("shares").onclick = openDashboard;
+$("dash-close").onclick = () => dash.close();
+dash.addEventListener("close", () => { if (location.hash === "#dashboard") dropHash(); });
 
 /* ---- the editor ---- */
 
@@ -885,9 +1059,9 @@ requestAnimationFrame(tick);
 fetch("api/library.php", { cache: "no-store" })
   .then(r => r.ok ? r.json() : Promise.reject())
   .then(async d => {
-    if (d.owner && !tabKept()) d = await send({ op: "logout" });
+    if ((d.owner || d.guest) && !tabKept()) d = await send({ op: "logout" });
     items = Array.isArray(d.items) ? d.items : [];
-    setOwner(d.owner);
+    setOwner(d.owner, d.guest);
     render();
     checkHash();
   })
