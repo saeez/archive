@@ -105,9 +105,15 @@ function playClass(i) {
 function showNow() {
   const c = courses[course], now = win.querySelector(".now"), b = playing && c.batches[playing.b], x = b?.classes[playing.i];
   if (!now || !x) return;
-  const text = el("div");
-  const when = x.date && [day(x.date), "Week " + weekOf(x.date, b.classes.map(y => y.date))];
-  text.append(el("p", "label", [c.batches.length > 1 && b.name, x.module, ...(when || [])].filter(Boolean).join(" · ") || c.name), auto(el("h3", "", x.title)));
+  const text = el("div"), meta = el("p", "now-meta"), mods = modulesOf(b.classes);
+  if (c.batches.length > 1) meta.append(el("span", "pill", b.name));
+  if (x.module) {
+    const m = el("span", "pill module-pill", x.module);
+    m.dataset.tint = moduleTints(mods)[mods.findIndex(g => g.classes.some(y => y.i === playing.i))];
+    meta.append(m);
+  }
+  if (x.date) meta.append(el("span", "pill", day(x.date)), el("span", "pill week", "Week " + weekOf(x.date, b.classes.map(y => y.date))));
+  text.append(meta, auto(el("h3", "", x.title)));
   now.replaceChildren(text);
   if (linkHost(x.notes || "")) now.append(notesLink(x.notes));
 }

@@ -893,8 +893,73 @@ body.ready .classes {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px 48px;
-  padding: 30px 110px 22px clamp(20px, 4vw, 48px);
-  border-bottom: 1px solid var(--line);
+  padding: 26px clamp(20px, 4vw, 48px) 22px;
+  border-bottom: 1px solid oklch(0.8 0.028 70);
+}
+
+.course-tools {
+  display: flex;
+  gap: 10px;
+}
+
+/* the batch on show, as a band in the accent */
+.course-top #course-label {
+  width: fit-content;
+  margin-top: 4px;
+  padding: 4px 11px;
+  border-radius: 7px;
+  color: var(--paper-3);
+  background: var(--accent);
+}
+
+.batch-tabs .chip[aria-pressed="true"] {
+  color: var(--paper-3);
+  border-color: var(--ink);
+  background: var(--ink);
+  box-shadow: none;
+}
+
+/* while a class plays, the head folds into one line, so the video and what is
+   under it fit */
+.playing .course-top {
+  padding-block: 14px;
+}
+
+.playing .course-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.playing .course-head .back {
+  order: -2;
+  margin: 0;
+}
+
+.playing #course-name {
+  order: -1;
+  margin: 0;
+  font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+}
+
+.playing .course-top #course-label,
+.playing .course-teacher,
+.playing .batch-tabs {
+  margin: 0;
+}
+
+/* an Urdu name keeps to the left, as everything else in the head does */
+.course-top h2:dir(rtl) {
+  text-align: left;
+}
+
+/* on a phone the video needs the room: the batch tab already says which one */
+@media (max-width: 760px) {
+  .playing .course-top #course-label,
+  .playing .course-teacher {
+    display: none;
+  }
 }
 
 .course-head {
@@ -1447,9 +1512,10 @@ body.ready .classes {
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: minmax(0, 720px);
+  grid-template-columns: minmax(0, 760px);
   justify-content: center;
-  padding: 8px clamp(20px, 4vw, 48px) 32px;
+  padding: 24px clamp(14px, 3vw, 40px) 32px;
+  background: var(--paper);
 }
 
 .player {
@@ -1461,8 +1527,8 @@ body.ready .classes {
   grid-template-columns: minmax(260px, calc(386px - 6.5%)) minmax(0, 1fr);   /* the video 6.5% wider than beside a 360px list */
   grid-template-rows: minmax(0, 1fr);
   justify-content: stretch;
-  gap: 36px;
-  padding-top: 28px;
+  gap: 28px;
+  padding-top: 20px;
 }
 
 .playing .player {
@@ -1512,10 +1578,40 @@ body.watching::after {
 
 .now {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-top: 18px;
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: var(--paper-3);
+  border: 1px solid oklch(0.8 0.028 70);
+  border-radius: 14px;
+}
+
+.now-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px !important;
+}
+
+.pill {
+  padding: 2px 9px;
+  font: 400 11px/1.6 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  border-radius: 999px;
+  background: var(--paper-2);
+}
+
+.module-pill {
+  background: var(--tint, oklch(0.885 0.05 60));
+}
+
+.pill.week {
+  background: oklch(0.895 0.055 90);
 }
 
 .now p {
@@ -1523,7 +1619,7 @@ body.watching::after {
 }
 
 .now h3 {
-  margin: 4px 0 0;
+  margin: 0;
   font: 500 clamp(1.4rem, 2.4vw, 1.9rem)/1.15 var(--serif);
 }
 
@@ -1539,17 +1635,34 @@ body.watching::after {
   list-style: none;
 }
 
-.module {
-  padding: 20px 0 8px;
+/* each module (and the batch's resources) a panel of its own */
+.modules {
+  display: grid;
+  gap: 16px;
 }
 
-.module + .module {
-  border-top: 1px solid var(--line);
+.module {
+  padding: 16px 18px 10px;
+  background: var(--paper-3);
+  border: 1px solid oklch(0.8 0.028 70);
+  border-radius: 16px;
+  box-shadow: 0 16px 34px -28px oklch(0.35 0.05 60 / .45);
+}
+
+.playing .module {
+  padding: 12px 12px 6px;
 }
 
 .module-name {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: var(--ink);
+}
+
+.modules > .class-empty {
+  margin: 0;
+  padding: 40px 20px;
+  border: 1px dashed oklch(0.78 0.03 70);
+  border-radius: 16px;
 }
 
 /* Headings that matter wear a soft band, a different warm tint for each, as
@@ -1563,22 +1676,22 @@ body.watching::after {
 }
 
 .link-group:nth-child(5n + 2),
-.module[data-tint="1"] {
+[data-tint="1"] {
   --tint: oklch(0.885 0.045 135);
 }
 
 .link-group:nth-child(5n + 3),
-.module[data-tint="2"] {
+[data-tint="2"] {
   --tint: oklch(0.885 0.045 20);
 }
 
 .link-group:nth-child(5n + 4),
-.module[data-tint="3"] {
+[data-tint="3"] {
   --tint: oklch(0.895 0.055 90);
 }
 
 .link-group:nth-child(5n),
-.module[data-tint="4"] {
+[data-tint="4"] {
   --tint: oklch(0.885 0.04 330);
 }
 
@@ -1594,14 +1707,18 @@ body.watching::after {
   gap: 12px;
 }
 
+.lesson + .lesson {
+  border-top: 1px solid var(--line);
+}
+
 .lesson-title {
   display: flex;
   align-items: baseline;
   gap: 14px;
   flex: 1;
   min-width: 0;
-  margin-left: -12px;
-  padding: 9px 12px;
+  margin: 3px 0 3px -8px;
+  padding: 8px;
   text-align: start;
   font: 500 1.18rem/1.3 var(--serif);
   color: var(--ink);
@@ -1618,8 +1735,8 @@ body.watching::after {
 }
 
 .lesson-title[aria-current="true"] {
-  background: oklch(0.92 0.018 75 / .85);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: oklch(0.92 0.025 70);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .playing .lesson-title {
@@ -1630,12 +1747,12 @@ body.watching::after {
   display: inline-block;
   margin-left: 10px;
   padding: 0 8px;
-  border: 1px solid oklch(0.52 0.1 42 / .35);
   border-radius: 999px;
   font: 400 9.5px/1.8 var(--mono);
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink);
+  background: oklch(0.9 0.045 42);
   vertical-align: 3px;
   white-space: nowrap;
 }
@@ -1650,13 +1767,17 @@ body.watching::after {
   height: 16px;
 }
 
+/* a class's number wears its module's tint */
 .lesson-n {
   flex: none;
-  min-width: 1.7em;
-  text-align: end;
+  min-width: 2.4em;
+  padding: 4px 5px;
+  text-align: center;
   font: 400 11px/1 var(--mono);
   letter-spacing: .06em;
-  color: var(--muted);
+  color: var(--ink);
+  border-radius: 6px;
+  background: var(--tint, oklch(0.885 0.05 60));
 }
 
 .lesson-text {

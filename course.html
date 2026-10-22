@@ -11,9 +11,9 @@
   <link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=28">
   <script src="app.js?v=25" defer></script>
-  <script src="course.js?v=23" defer></script>
+  <script src="course.js?v=28" defer></script>
 </head>
 
 <body>
@@ -57,6 +57,14 @@
           <p id="course-teacher" class="course-teacher" hidden></p>
           <nav id="batch-tabs" class="batch-tabs" aria-label="Batches"></nav>
         </div>
+        <div id="tools" class="course-tools" hidden><button id="resource-pen" class="icon-btn" type="button"
+            title="Add or change a resource for this batch" aria-label="Add or change a resource for this batch"><svg
+              class="icon" aria-hidden="true">
+              <use href="#i-link" />
+            </svg></button><button id="class-pen" class="icon-btn" type="button" title="Add or change a class"
+            aria-label="Add or change a class"><svg class="icon" aria-hidden="true">
+              <use href="#i-pen" />
+            </svg></button></div>
       </header>
       <div class="course-body">
         <div id="player" class="player"></div>
@@ -65,15 +73,6 @@
     </article>
     <p id="nothing" class="label nothing" hidden>Nothing here. <a href="./">Back to the archive</a></p>
   </main>
-
-  <div id="tools" class="detail-tools" hidden><button id="resource-pen" class="icon-btn" type="button"
-      title="Add or change a resource for this batch" aria-label="Add or change a resource for this batch"><svg
-        class="icon" aria-hidden="true">
-        <use href="#i-link" />
-      </svg></button><button id="class-pen" class="icon-btn" type="button" title="Add or change a class"
-      aria-label="Add or change a class"><svg class="icon" aria-hidden="true">
-        <use href="#i-pen" />
-      </svg></button></div>
 
   <dialog id="class-editor">
     <form id="class-form" class="form-card">
