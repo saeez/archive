@@ -660,14 +660,13 @@ const shareUrl = code => location.origin + location.pathname + "#" + code;
 function sharedWhat(s) {
   const box = el("div");
   for (const x of s.scope) {
-    const c = courses.find(y => y.name === x.course), line = el("div");
-    line.append(el("bdi", "", x.course), " · " + (x.batch || "Every batch"));
+    const c = courses.find(y => y.name === x.course), line = el("div", "scope-line");
+    line.append(el("bdi", "", x.course), el("span", x.batch ? "batch-pill" : "batch-pill every", x.batch || "Every batch"));
     if (!c || (x.batch && !c.batches.some(b => b.name === x.batch))) line.append(el("span", "label gone", "No longer there"));
     box.append(line);
   }
   return box;
 }
-const when = at => new Date(at * 1000).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function copy(text, b) {
   navigator.clipboard?.writeText(text).then(() => {
     b.classList.add("done");
@@ -685,7 +684,7 @@ function showShares() {
   $("share-count").textContent = shares.length ? `· ${shares.length}` : "";
   $("share-rows").replaceChildren(...(!shares.length ? [emptyRow(4, "Nothing shared yet.")] : [...shares].reverse().map(s => {
     const tr = el("tr"), link = el("td"), what = el("td"), pw = el("td"), tools = el("td", "row-tools");
-    link.append(el("span", "share-link", shareUrl(s.code)));
+    link.append(el("span", "share-host", location.host + location.pathname), el("span", "code-chip", "#" + s.code));
     what.append(sharedWhat(s));
     pw.append(el("code", "share-password", s.password || "—"));
     const cp = iconBtn("i-copy", `Copy the link and password of #${s.code}`), pen = iconBtn("i-pen", `New password for #${s.code}`), del = iconBtn("i-trash", `Delete #${s.code}`, "icon-btn trash");
@@ -732,9 +731,11 @@ function showOpens() {
   const list = [...opens].reverse(), pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
   openPage = Math.min(openPage, pages - 1);
   $("open-rows").replaceChildren(...(!list.length ? [emptyRow(3, "Not opened yet.")] : list.slice(openPage * PER_PAGE, (openPage + 1) * PER_PAGE).map(o => {
-    const tr = el("tr"), what = el("td"), s = shares.find(x => x.code === o.code);
+    const tr = el("tr"), at = el("td"), link = el("td"), what = el("td"), s = shares.find(x => x.code === o.code), d = new Date(o.at * 1000);
+    at.append(d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }), el("span", "when-time", d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })));
+    link.append(el("span", "code-chip", "#" + o.code));
     what.append(s ? sharedWhat(s) : el("span", "label gone", "Deleted"));
-    tr.append(el("td", "", when(o.at)), el("td", "share-link", "#" + o.code), what);
+    tr.append(at, link, what);
     return tr;
   })));
   $("open-page").textContent = `${openPage + 1} of ${pages}`;
@@ -747,7 +748,7 @@ $("open-next").onclick = () => { openPage++; showOpens(); };
 
 /* What a new link opens: a row of ticks for each course, "Every batch" first;
    ticking it ticks (and holds) all that course's batches. */
-function tick(course, batch, text) {
+function tickBox(course, batch, text) {
   const label = el("label", "tick"), box = Object.assign(el("input"), { type: "checkbox" });
   Object.assign(box.dataset, { course, batch });
   label.append(box, text);
@@ -756,7 +757,7 @@ function tick(course, batch, text) {
 function fillScope() {
   $("scope-list").replaceChildren(...courses.map(c => {
     const row = el("div", "scope-course");
-    row.append(el("bdi", "scope-name", c.name), tick(c.name, "", "Every batch"), ...c.batches.map(b => tick(c.name, b.name, b.name)));
+    row.append(el("bdi", "scope-name", c.name), tickBox(c.name, "", "Every batch"), ...c.batches.map(b => tickBox(c.name, b.name, b.name)));
     return row;
   }));
 }

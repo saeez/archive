@@ -13,6 +13,20 @@ const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkF
 const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place, shareCode, weekOf } =
   new Function(src.slice(0, cut) + `\nreturn { ${names} };`)();
 
+/* the pages' scripts share one scope (app.js, then the page's own): a name
+   declared twice there silently replaces the first, as a second "tick" once
+   stopped the shelf */
+for (const page of ["home.js", "course.js"]) {
+  const seen = new Map();
+  for (const f of ["app.js", page]) {
+    for (const m of fs.readFileSync(`${__dirname}/${f}`, "utf8").matchAll(/^(?:async\s+)?function\*?\s+([\w$]+)|^(?:const|let|var|class)\s+([\w$]+)/gm)) {
+      const name = m[1] || m[2];
+      assert.ok(!seen.has(name), `"${name}" is declared in ${seen.get(name)} and again in ${f}`);
+      seen.set(name, f);
+    }
+  }
+}
+
 /* spines */
 assert.strictEqual(spineWidth(1), 16, "thin pamphlets still get a readable spine");
 assert.strictEqual(spineWidth(5000), 92, "doorstops are capped");

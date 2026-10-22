@@ -10,9 +10,9 @@
 <link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
 <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="styles.css?v=25">
+<link rel="stylesheet" href="styles.css?v=26">
 <script src="app.js?v=25" defer></script>
-<script src="home.js?v=25" defer></script>
+<script src="home.js?v=27" defer></script>
 </head>
 <body>
 
@@ -208,20 +208,23 @@
       </div>
     </header>
     <div class="dash-body">
-      <section class="dash-part" aria-labelledby="dash-links">
-        <h3 id="dash-links" class="label">Shared links <span id="share-count"></span></h3>
+      <section class="dash-part" aria-labelledby="dash-make">
+        <h3 id="dash-make" class="label band make">Make a link</h3>
         <form id="share-form" class="form-card share-form">
           <fieldset class="scope-pick">
             <legend class="label">Opens <small>(tick courses, or batches of them)</small></legend>
             <div id="scope-list" class="scope-list"></div>
           </fieldset>
-          <div class="row">
+          <div class="share-row">
             <label class="field"><span class="label">Code <small>(the link's ending)</small></span><input name="code" required minlength="2" maxlength="20" pattern="[A-Za-z0-9]+" placeholder="e.g. CTB3" autocomplete="off"></label>
             <label class="field"><span class="label">Password <small>(empty: one is made)</small></span><input name="password" minlength="6" maxlength="72" autocomplete="off"></label>
+            <button class="solid-btn">Make a link</button>
           </div>
           <p id="share-error" class="error" role="alert"></p>
-          <div class="actions"><button class="solid-btn">Make a link</button></div>
         </form>
+      </section>
+      <section class="dash-part" aria-labelledby="dash-links">
+        <h3 id="dash-links" class="label band links">Shared links <span id="share-count"></span></h3>
         <div class="table-wrap">
           <table class="dash-table">
             <thead><tr><th>Link</th><th>Opens</th><th>Password</th><th><span class="sr">Tools</span></th></tr></thead>
@@ -230,7 +233,7 @@
         </div>
       </section>
       <section class="dash-part" aria-labelledby="dash-opened">
-        <h3 id="dash-opened" class="label">Opened</h3>
+        <h3 id="dash-opened" class="label band opened">Opened</h3>
         <div class="table-wrap">
           <table class="dash-table">
             <thead><tr><th>When</th><th>Link</th><th>Opens</th></tr></thead>
