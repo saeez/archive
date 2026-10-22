@@ -319,7 +319,13 @@ async function send(body) {
     : `Something went wrong (${r.status}).`));
   return data;
 }
-const fetchOwn = what => fetch("api/library.php?" + what, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
+const TAB = "archive-tab";
+const tabKept = () => { try { return sessionStorage.getItem(TAB) === "1"; } catch { return false; } };
+const keepTab = () => { try { sessionStorage.setItem(TAB, "1"); } catch {} };
+const fetchOwn = async what => {
+  if (!tabKept()) { await send({ op: "logout" }).catch(() => {}); return null; }
+  return fetch("api/library.php?" + what, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
+};
 
 /* ---- the link editor ----
    One form for links kept in groups (a batch's resources are a single group

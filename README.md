@@ -64,8 +64,10 @@ step, no npm, no database.
 - **Password**: only a bcrypt hash is stored (`api/config.php`, never in this
   repository). After 5 wrong attempts from one address, or 30 in total, sign-in
   is locked for 15 minutes.
-- **Sign-in cookie**: HMAC-signed, HttpOnly, SameSite=Strict, Secure on HTTPS,
-  7 days. Setting a new password invalidates every existing sign-in.
+- **Sign-in cookie**: HMAC-signed, HttpOnly, SameSite=Strict, Secure on HTTPS.
+  It lasts only while the site is open: closing the tab or the browser signs
+  out (and it expires after 7 days regardless). Setting a new password
+  invalidates every existing sign-in.
 - **Requests** must be JSON from the site's own origin; other sites can't post.
 - **Data files** (`data/`) are never served directly. They are read only
   through `api/library.php`, and each starts with a PHP line that outputs

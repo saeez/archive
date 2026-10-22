@@ -6,7 +6,7 @@
    Librarian:  GET ?classes         → {courses}: courses, their batches, each batch's classes and resources (data/classes.php)
                GET ?links           → {groups}: the links page (data/links.php)
                POST {op:"classes", courses} | {op:"links", groups}  → saves one of them whole (.bak.php keeps the last)
-               POST {op:"login", password}   → a signed, HttpOnly cookie for 7 days
+               POST {op:"login", password}   → a signed, HttpOnly cookie that ends with the browser session (7 days at most)
                POST {op:"logout"}
                POST {op:"put", item} | {op:"delete", id}
    Lists and edits answer {owner, items}.
@@ -87,9 +87,11 @@ function is_owner(?array $cfg): bool {
   return (int)$m[1] > time() && hash_equals(token($cfg, (int)$m[1]), $c);
 }
 /* HttpOnly: page scripts can't read it. SameSite=Strict: other sites can't
-   send it. Secure: only over HTTPS (your own computer has no HTTPS). */
-function cookie(string $value, int $until, bool $https): void {
-  setcookie(COOKIE, $value, ['expires' => $until, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
+   send it. Secure: only over HTTPS (your own computer has no HTTPS).
+   No expiry date: the browser drops it when it closes, and the pages sign out
+   any tab opened afresh (sessionStorage), so closing the site signs out. */
+function cookie(string $value, int $expires, bool $https): void {
+  setcookie(COOKIE, $value, ['expires' => $expires, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
 }
 
 /* What may be shown: visitors get no private items and no notes. Covers
@@ -188,7 +190,7 @@ if ($op === 'login') {
     reply(401, ['error' => 'That is not the password.']);
   }
   $until = time() + DAYS * 86400;
-  cookie(token($cfg, $until), $until, $https);
+  cookie(token($cfg, $until), 0, $https);
   reply(200, ['owner' => true, 'items' => view($items, true)]);
 }
 

@@ -514,6 +514,7 @@ function glow(id) {
 /* Saves, then shows the library as it now stands. */
 async function save(body) {
   const data = await send(body);
+  if (body.op === "login") keepTab();
   if (Array.isArray(data.items)) { items = data.items; setOwner(data.owner); }
   return data;
 }
@@ -570,13 +571,14 @@ async function loadClasses() {
   const got = owner ? (await fetchOwn("classes"))?.courses : [];
   courses = owner && Array.isArray(got) ? got.filter(c => c && Array.isArray(c.batches) && c.batches.length) : [];
   showClasses();
-  if (location.hash === "#courses" && courses.length) $("classes").scrollIntoView({ block: "start" });   // back from a course page
+  if (location.hash === "#courses" && courses.length) { $("classes").scrollIntoView({ block: "start" }); dropHash(); }   // back from a course page
 }
 
 const classesOf = c => c.batches.flatMap(b => b.classes);
 const classHits = ws => !ws.length ? [] : courses.flatMap((c, ci) =>
   c.batches.flatMap((b, bi) => b.classes.flatMap((x, i) => classMatches(x, ws) ? [{ ci, bi, i, x }] : [])));
-const toCourse = (cls, q) => Object.assign(el("a", cls), { href: "course.html?" + q });
+// leaving for a course, this page's place in the history becomes the Courses section, so Back returns there
+const toCourse = (cls, q) => Object.assign(el("a", cls), { href: "course.html?" + q, onclick: () => history.replaceState(null, "", "#courses") });
 
 /* The courses as cards, each opening its own page; while searching, the
    classes that match beneath them. Returns how many match. */
@@ -882,5 +884,11 @@ typeHeading();
 requestAnimationFrame(tick);
 fetch("api/library.php", { cache: "no-store" })
   .then(r => r.ok ? r.json() : Promise.reject())
-  .then(d => { items = Array.isArray(d.items) ? d.items : []; setOwner(d.owner); render(); checkHash(); })
+  .then(async d => {
+    if (d.owner && !tabKept()) d = await send({ op: "logout" });
+    items = Array.isArray(d.items) ? d.items : [];
+    setOwner(d.owner);
+    render();
+    checkHash();
+  })
   .catch(() => track.replaceChildren(el("p", "label empty-shelf", "The archive could not be loaded. Refresh the page to try again.")));

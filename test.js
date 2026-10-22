@@ -169,6 +169,7 @@ const PW = "correct horse battery staple", PW2 = "a whole new password ✓";
     const raw = r.headers.getSetCookie()[0];
     assert.match(raw, /HttpOnly/i, "page scripts can't read the sign-in cookie");
     assert.match(raw, /SameSite=Strict/i, "other sites can't send it");
+    assert.doesNotMatch(raw, /expires|max-age/i, "and it ends when the browser closes");
     const me = cookieOf(r);
 
     /* the librarian's books, notes and private things */
