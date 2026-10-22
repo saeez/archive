@@ -41,8 +41,10 @@ function fillClassList() {
     li.append(el("h3", "label module-name", "Resources"), ul);
     groups.append(li);
   }
-  for (const m of modulesOf(b.classes)) {
+  const mods = modulesOf(b.classes), tints = moduleTints(mods);
+  mods.forEach((m, k) => {
     const li = el("li", "module"), ol = el("ol", "lessons");
+    li.dataset.tint = tints[k];
     for (const x of m.classes) {
       const row = el("li", "lesson"), id = youtubeId(x.url);
       const t = id ? el("button", "lesson-title") : outLink(x.url, "lesson-title");
@@ -57,23 +59,36 @@ function fillClassList() {
     if (m.name) li.append(el("h3", "label module-name", m.name));
     li.append(ol);
     groups.append(li);
-  }
+  });
   if (!b.classes.length) groups.append(el("li", "label class-empty", "No classes yet. Press the pen to add the first."));
   list.replaceChildren(groups);
 }
 
-/* The video plays on the left; the classes slide over to the right. */
+/* The video waits for a click to play; while it plays the page around it dims,
+   and a pause or the end brightens it again. */
+const YT = "https://www.youtube-nocookie.com";
+addEventListener("message", e => {
+  if (e.origin !== YT || e.source !== $("player").querySelector("iframe")?.contentWindow) return;
+  let d;
+  try { d = JSON.parse(e.data); } catch { return; }
+  const state = d.event === "onStateChange" ? d.info : d.info?.playerState;   // 1 playing, 2 paused, 0 ended, 3 loading
+  if (typeof state === "number" && state !== 3) document.body.classList.toggle("watching", state === 1);
+});
+
+/* The video plays on the right; the classes slide over to the left. */
 function playClass(i) {
   const x = courses[course].batches[batch]?.classes[i], id = x && youtubeId(x.url);
   if (!id) return;
   const player = $("player"), from = list.getBoundingClientRect(), first = !win.classList.contains("playing");
   playing = { b: batch, i };
+  document.body.classList.remove("watching");
   const screen = el("div", "screen"), frame = el("iframe");
   Object.assign(frame, {
-    src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`, title: x.title,
+    src: `${YT}/embed/${id}?rel=0&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`, title: x.title,
     allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowFullscreen: true,
     referrerPolicy: "strict-origin-when-cross-origin",   // YouTube refuses to play for a page that sends no referrer
   });
+  frame.onload = () => frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), YT);
   screen.append(frame);
   player.replaceChildren(screen, el("div", "now"));
   showNow();
@@ -83,7 +98,7 @@ function playClass(i) {
   if (!first || calm.matches) return;
   const to = list.getBoundingClientRect(), ease = "cubic-bezier(.22,.61,.36,1)";
   list.animate([{ transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)` }, { transform: "none" }], { duration: 900, easing: ease });
-  player.animate([{ opacity: 0, transform: "translateX(-28px)" }, { opacity: 1, transform: "none" }], { duration: 900, delay: 150, easing: ease, fill: "backwards" });
+  player.animate([{ opacity: 0, transform: "translateX(28px)" }, { opacity: 1, transform: "none" }], { duration: 900, delay: 150, easing: ease, fill: "backwards" });
 }
 
 /* Under the video: what is playing, and its notes. */
@@ -99,14 +114,22 @@ function showNow() {
 /* ---- adding and changing classes ---- */
 
 const classEditor = $("class-editor"), classForm = $("class-form"), which = classForm.elements.which;
+const modulePick = classForm.elements.module, newModule = classForm.elements["new-module"];
 let editingClass = -1;
+
+/* The last choice, "New module…", opens a box for its name. */
+function showNewModule() {
+  newModule.hidden = modulePick.selectedIndex !== modulePick.length - 1;
+  newModule.required = !newModule.hidden;
+}
+modulePick.onchange = () => { showNewModule(); if (!newModule.hidden) newModule.focus(); };
 
 function openClassEditor(i = -1) {
   const c = courses[course], b = c.batches[batch];
   which.replaceChildren(new Option("A new class", -1), ...b.classes.map((x, j) => new Option(`${j + 1}. ${x.title}`, j)));
   which.value = i;
   $("class-batches").replaceChildren(...c.batches.map(x => new Option(x.name)));
-  $("class-modules").replaceChildren(...[...new Set(classesOf(c).map(x => x.module).filter(Boolean))].map(m => new Option(m)));
+  modulePick.replaceChildren(new Option("No module", ""), ...[...new Set(classesOf(c).map(x => x.module).filter(Boolean))].map(m => new Option(m)), new Option("New module…", ""));
   $("class-course").textContent = c.name;
   fillClassForm();
   classEditor.showModal();
@@ -117,7 +140,9 @@ function fillClassForm() {
   editingClass = x ? +which.value : -1;
   for (const k of ["title", "url", "notes", "module", "tag"]) classForm.elements[k].value = x?.[k] || "";
   classForm.elements.batch.value = b.name;
-  if (!x) classForm.elements.module.value = b.classes.at(-1)?.module || "";
+  if (!x) modulePick.value = b.classes.at(-1)?.module || "";
+  newModule.value = "";
+  showNewModule();
   $("class-form-title").textContent = x ? "Change a class" : "Add a class";
   $("class-remove").hidden = !x;
   $("class-error").textContent = "";
@@ -153,7 +178,9 @@ classForm.addEventListener("input", e => { if (e.target !== which) dirty = true;
 classForm.addEventListener("submit", e => {
   e.preventDefault();
   const b = courses[course].batches[batch], old = b.classes[editingClass], x = {};
-  for (const k of ["module", "title", "url", "tag", "notes"]) {
+  const module = (newModule.hidden ? modulePick : newModule).value.trim();
+  if (module) x.module = module;
+  for (const k of ["title", "url", "tag", "notes"]) {
     const v = classForm.elements[k].value.trim();
     if (v) x[k] = v;
   }

@@ -52,6 +52,16 @@ function place(groups, key, from, at, x, to) {
   if (at >= 0 && Object.values(src).every(v => !Array.isArray(v) || !v.length) && out.length > 1) out.splice(out.indexOf(src), 1);
   return out;
 }
+/* One of five tints for each module group: a module keeps its tint wherever it
+   shows up again, and a new one takes the tint after the group above it. */
+function moduleTints(groups) {
+  const seen = new Map();
+  let last = -1;
+  return groups.map(m => {
+    if (!seen.has(m.name)) seen.set(m.name, (last + 1) % 5);
+    return last = seen.get(m.name);
+  });
+}
 const placeClass = (course, from, at, x, to) => ({ ...course, batches: place(course.batches, "classes", from, at, x, to) });
 
 /* The video id of a YouTube address ("" for anything else), so only YouTube

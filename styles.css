@@ -1100,7 +1100,7 @@ body.ready .classes {
 
 .playing .course-body {
   overflow: hidden;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  grid-template-columns: minmax(260px, calc(386px - 6.5%)) minmax(0, 1fr);   /* the video 6.5% wider than beside a 360px list */
   grid-template-rows: minmax(0, 1fr);
   justify-content: stretch;
   gap: 36px;
@@ -1113,12 +1113,31 @@ body.ready .classes {
 }
 
 .playing .class-list {
+  order: -1;
   overflow: auto;
   overscroll-behavior: contain;
   padding-right: 6px;
 }
 
+/* while a class plays, the page around the video dims a little */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background: oklch(0.2 0.02 55 / .5);
+  opacity: 0;
+  transition: opacity 1.2s var(--slow);
+}
+
+body.watching::after {
+  opacity: 1;
+}
+
 .screen {
+  position: relative;
+  z-index: 21;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 14px;
@@ -1185,19 +1204,23 @@ body.ready .classes {
   background: var(--tint, oklch(0.885 0.05 60));
 }
 
-:is(.module, .link-group):nth-child(5n + 2) {
+.link-group:nth-child(5n + 2),
+.module[data-tint="1"] {
   --tint: oklch(0.885 0.045 135);
 }
 
-:is(.module, .link-group):nth-child(5n + 3) {
+.link-group:nth-child(5n + 3),
+.module[data-tint="2"] {
   --tint: oklch(0.885 0.045 20);
 }
 
-:is(.module, .link-group):nth-child(5n + 4) {
+.link-group:nth-child(5n + 4),
+.module[data-tint="3"] {
   --tint: oklch(0.895 0.055 90);
 }
 
-:is(.module, .link-group):nth-child(5n) {
+.link-group:nth-child(5n),
+.module[data-tint="4"] {
   --tint: oklch(0.885 0.04 330);
 }
 
@@ -1300,6 +1323,10 @@ body.ready .classes {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     gap: 18px;
+  }
+
+  .playing .class-list {
+    order: 0;
   }
 }
 

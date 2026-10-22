@@ -10,9 +10,9 @@
 <link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
 <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="styles.css?v=15">
-<script src="app.js?v=15" defer></script>
-<script src="course.js?v=15" defer></script>
+<link rel="stylesheet" href="styles.css?v=18">
+<script src="app.js?v=16" defer></script>
+<script src="course.js?v=17" defer></script>
 </head>
 <body>
 
@@ -58,7 +58,7 @@
     <label class="field"><span class="label">Notes link <small>(optional)</small></span><input name="notes" type="url" maxlength="2000" pattern="https?://.+" placeholder="https://…" autocomplete="off"></label>
     <div class="row three">
       <label class="field"><span class="label">Batch <small>(new name, new batch)</small></span><input name="batch" list="class-batches" required maxlength="60" autocomplete="off"></label>
-      <label class="field"><span class="label">Module</span><input name="module" list="class-modules" maxlength="120" autocomplete="off"></label>
+      <div class="field"><label class="label" for="module-pick">Module</label><select id="module-pick" name="module"></select><input name="new-module" maxlength="120" placeholder="New module's name" aria-label="New module's name" autocomplete="off" hidden></div>
       <label class="field"><span class="label">Label <small>(e.g. Bonus)</small></span><input name="tag" maxlength="60" autocomplete="off"></label>
     </div>
     <p id="class-error" class="error" role="alert"></p>
@@ -88,7 +88,6 @@
 </dialog>
 
 <datalist id="link-groups"></datalist>
-<datalist id="class-modules"></datalist>
 <datalist id="class-batches"></datalist>
 
 </body>

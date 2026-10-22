@@ -9,8 +9,8 @@ const { spawn, spawnSync } = require("child_process");
 const src = fs.readFileSync(__dirname + "/app.js", "utf8");
 const cut = src.indexOf("/* ---- DOM ---- */");
 assert.ok(cut > 0, "DOM marker moved — update test.js");
-const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass, place";
-const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, youtubeId, classMatches, placeClass, place } =
+const names = "spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place";
+const { spineWidth, arrange, genresOf, matches, words, hits, settle, inkFor, worst, dominant, yearText, linkHost, format, blocks, spans, plain, modulesOf, moduleTints, youtubeId, classMatches, placeClass, place } =
   new Function(src.slice(0, cut) + `\nreturn { ${names} };`)();
 
 /* spines */
@@ -34,6 +34,8 @@ assert.strictEqual(linkHost("drive.google.com/file/d/x"), "");
 assert.deepStrictEqual(modulesOf([{ module: "Cortisol", title: "a" }, { module: "Cortisol", title: "b" }, { module: "Oxytocin", title: "c" }, { module: "Cortisol", title: "d" }])
   .map(m => [m.name, m.classes.map(c => c.i + c.title)]), [["Cortisol", ["0a", "1b"]], ["Oxytocin", ["2c"]], ["Cortisol", ["3d"]]], "classes in a row with one module form a group");
 assert.deepStrictEqual(modulesOf([{ title: "x" }]).map(m => m.name), [""], "a class without a module still shows");
+assert.deepStrictEqual(moduleTints(["A", "B", "C", "D", "E", "F"].map(name => ({ name }))), [0, 1, 2, 3, 4, 0], "modules take the five tints in turn");
+assert.deepStrictEqual(moduleTints(["A", "B", "A", "C"].map(name => ({ name }))), [0, 1, 0, 1], "a module used again keeps its tint; a new one never matches the group above it");
 assert.strictEqual(youtubeId("https://youtu.be/Ju-Zem0r44c?si=abc"), "Ju-Zem0r44c");
 assert.strictEqual(youtubeId("https://www.youtube.com/watch?v=Doxpyx6jEj0&t=30"), "Doxpyx6jEj0");
 assert.strictEqual(youtubeId("https://youtube.com/live/Doxpyx6jEj0"), "Doxpyx6jEj0");
